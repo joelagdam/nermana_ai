@@ -2,6 +2,7 @@
 # ================================================================
 # NERMANA Installer v4.7.2
 # Installs NERMANA on Termux with AI models, Telegram bot / offline
+# Repository: https://github.com/joelagdam/nermana_ai
 # ================================================================
 set -e
 
@@ -13,6 +14,7 @@ info()    { echo -e "${CYAN}[i]${RESET} $1"; }
 section() { echo -e "\n${BOLD}${CYAN}━━━ $1 ━━━${RESET}"; }
 prompt_yn() { local d=$2; read -p "$1 [Y/n]: " r; [[ "$r" =~ ^[nN] ]] && return 1; return 0; }
 
+REPO_URL="https://github.com/joelagdam/nermana_ai.git"
 NERMANA_DIR="$HOME/nermana"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="$NERMANA_DIR/.config"
@@ -151,15 +153,13 @@ else
 fi
 
 # ─────────────────────────────────────────
-# 4. Copy NERMANA files
+# 4. Clone / copy NERMANA files
 # ─────────────────────────────────────────
 section "Installing NERMANA files"
 
-if [ "$SCRIPT_DIR" = "$NERMANA_DIR" ]; then
-    info "Already in target directory — skipping copy"
-else
+if [ -d "$SCRIPT_DIR/.git" ] && git -C "$SCRIPT_DIR" config --get remote.origin.url 2>/dev/null | grep -q "nermana_ai"; then
+    # we are inside the git repo — copy files
     info "Copying from $SCRIPT_DIR → $NERMANA_DIR"
-    # copy everything except models/ and .git
     for item in "$SCRIPT_DIR"/*; do
         name="$(basename "$item")"
         [ "$name" = "models" ] && continue
@@ -167,16 +167,39 @@ else
         [ "$name" = "install.sh" ] && continue
         cp -r "$item" "$NERMANA_DIR/" 2>/dev/null || true
     done
-    # copy hidden files
     for item in "$SCRIPT_DIR"/.[!.]*; do
         [ -e "$item" ] || continue
         name="$(basename "$item")"
         [ "$name" = ".git" ] && continue
         cp -r "$item" "$NERMANA_DIR/" 2>/dev/null || true
     done
-    # also copy install.sh itself so it's available at destination
     cp "$SCRIPT_DIR/install.sh" "$NERMANA_DIR/install.sh"
-    ok "Files copied"
+    ok "Files copied from local repo"
+elif [ -d "$NERMANA_DIR/bot" ] && [ -f "$NERMANA_DIR/nermana_ctl.sh" ]; then
+    # already installed — skip clone
+    info "NERMANA already present at $NERMANA_DIR — skipping clone"
+else
+    # standalone install.sh — clone from GitHub
+    info "Cloning from $REPO_URL"
+    # save models/ aside before clone overwrites
+    if [ -d "$NERMANA_DIR/models" ]; then
+        mv "$NERMANA_DIR/models" "/tmp/nermana_models_backup"
+    fi
+    rm -rf "$NERMANA_DIR"
+    git clone --depth=1 "$REPO_URL" "$NERMANA_DIR" 2>&1 | tail -3
+    if [ -d "$NERMANA_DIR" ]; then
+        ok "Repository cloned"
+    else
+        # restore models/ before failing
+        [ -d "/tmp/nermana_models_backup" ] && mv "/tmp/nermana_models_backup" "$NERMANA_DIR/models" 2>/dev/null
+        fail "Clone failed. Check network or URL: $REPO_URL"
+    fi
+    # restore preserved models/
+    if [ -d "/tmp/nermana_models_backup" ]; then
+        rm -rf "$NERMANA_DIR/models"
+        mv "/tmp/nermana_models_backup" "$NERMANA_DIR/models"
+        info "Preserved models/ restored"
+    fi
 fi
 
 mkdir -p "$NERMANA_DIR"/{bot,web,logs,memory/{long_term,short_term,junk,buffer,embeddings},knowledge,modules,state}
@@ -383,6 +406,7 @@ ELAPSED=$(( $(date +%s) - START_EPOCH ))
 section "Installation complete (${ELAPSED}s)"
 echo ""
 echo -e "  ${BOLD}NERMANA v4.7.2${RESET} installed to ${CYAN}$NERMANA_DIR${RESET}"
+echo -e "  ${DIM}Repository: $REPO_URL${RESET}"
 echo ""
 echo -e "  ${BOLD}Quick start:${RESET}"
 echo ""

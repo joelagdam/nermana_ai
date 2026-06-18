@@ -3,7 +3,7 @@
 import sys
 import re, json, subprocess, shutil, socket, time as _time, os, threading
 from pathlib import Path
-from flask import Flask, jsonify, request, Response, send_from_directory
+from flask import Flask, jsonify, request, Response
 
 # sys.path must be set before any local imports
 sys.path.insert(0, str(Path.home() / "nermana" / "modules"))
@@ -1127,19 +1127,41 @@ def api_reinstall():
     out = _run(f"cd {BASE} && bash install.sh --quick 2>&1")
     return jsonify({"status": "done", "output": out[-500:], "version": _current_version()})
 
-WEB_DIR = str(Path(__file__).parent)
+WEB_DIR = Path(__file__).resolve().parent
 
 @app.route('/css/<path:filename>')
 def css_static(filename):
-    return send_from_directory(WEB_DIR + "/css", filename)
+    try:
+        p = WEB_DIR / "css" / filename
+        p = p.resolve()
+        if not str(p).startswith(str((WEB_DIR / "css").resolve())):
+            return "forbidden", 403
+        return Response(p.read_bytes(), mimetype="text/css")
+    except Exception:
+        return "not found", 404
 
 @app.route('/js/<path:filename>')
 def js_static(filename):
-    return send_from_directory(WEB_DIR + "/js", filename)
+    try:
+        p = WEB_DIR / "js" / filename
+        p = p.resolve()
+        if not str(p).startswith(str((WEB_DIR / "js").resolve())):
+            return "forbidden", 403
+        return Response(p.read_bytes(), mimetype="application/javascript")
+    except Exception:
+        return "not found", 404
+
+@app.route('/favicon.ico')
+def favicon():
+    return "", 204
 
 @app.route('/')
 def index():
-    return send_from_directory(WEB_DIR, "index.html")
+    try:
+        p = WEB_DIR / "index.html"
+        return Response(p.read_text(), mimetype="text/html")
+    except Exception:
+        return "not found", 404
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)

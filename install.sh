@@ -25,7 +25,7 @@ fail()    { echo -e " ${RED}✖${RESET} $1"; exit 1; }
 info()    { echo -e " ${CYAN}ℹ${RESET} $1"; }
 section() { echo -e "\n ${BOLD}${MAGENTA}◆${RESET} ${BOLD}$1${RESET}"; }
 sub()     { echo -e "    $1"; }
-prompt_yn() { read -p " ${CYAN}?${RESET} $1 [Y/n] " r; [[ "$r" =~ ^[nN] ]] && return 1; return 0; }
+prompt_yn() { echo -ne " ${CYAN}?${RESET} $1 [Y/n] "; read r; [[ "$r" =~ ^[nN] ]] && return 1; return 0; }
 
 # ── Download progress ────────────────────────────
 download_file() {
@@ -326,7 +326,8 @@ if [ "$_QUICK_MODE" = true ]; then
     ch="$DEFAULT_CH"
     info "Quick mode — using default model"
 else
-    read -p "  ${CYAN}?${RESET} Choose a model to download [1-3, s]: " ch
+    echo -ne "  ${CYAN}?${RESET} Choose a model to download [1-3, s]: "
+    read ch
     ch="${ch:-$DEFAULT_CH}"
 fi
 
@@ -399,7 +400,8 @@ get_telegram_token() {
     TELEGRAM_TOKEN="$saved_token"
     if [ -z "$TELEGRAM_TOKEN" ]; then
         echo ""
-        read -p "  ${CYAN}?${RESET} Paste your Telegram Bot Token (or press Enter for offline): " TELEGRAM_TOKEN
+        echo -ne "  ${CYAN}?${RESET} Paste your Telegram Bot Token (or press Enter for offline): "
+        read TELEGRAM_TOKEN
         if [ -n "$TELEGRAM_TOKEN" ]; then
             info "Validating..."
             if curl -s "https://api.telegram.org/bot${TELEGRAM_TOKEN}/getMe" | grep -q '"ok":true'; then
@@ -420,7 +422,8 @@ else
     echo -e "    ${CYAN}1${RESET}) Telegram bot — requires token from @BotFather"
     echo -e "    ${CYAN}2${RESET}) Offline mode — web UI only"
     echo ""
-    read -p "  ${CYAN}?${RESET} Mode [1-2]: " mode_ch
+    echo -ne "  ${CYAN}?${RESET} Mode [1-2]: "
+    read mode_ch
     mode_ch="${mode_ch:-1}"
     if [ "$mode_ch" != "2" ]; then
         get_telegram_token
@@ -509,24 +512,4 @@ echo -e "      ${CYAN}nermana stop${RESET}      Stop everything"
 echo -e "      ${CYAN}nermana reset${RESET}     Clear memories"
 echo ""
 echo -e "  ${DIM}Or without alias: bash ~/nermana/nermana_ctl.sh start${RESET}"
-echo ""
-
-if [ "$_QUICK_MODE" = false ]; then
-    if prompt_yn "Start NERMANA now?"; then
-        echo ""
-        if command -v nermana &>/dev/null; then
-            nermana start
-        else
-            bash "$NERMANA_DIR/nermana_ctl.sh" start
-        fi
-        echo ""
-        if [ -n "$TELEGRAM_TOKEN" ]; then
-            ok "Bot + servers launching"
-        else
-            ok "LLM servers starting — open http://127.0.0.1:5000"
-        fi
-    else
-        info "Run later: source ~/.bashrc && nermana start"
-    fi
-fi
 echo ""

@@ -751,19 +751,18 @@ async function loadVersion() {
     const com = $('v-commit');
     const beh = $('v-behind');
     if (cur) cur.textContent = v.current_version || '—';
-    if (com) com.textContent = '#' + (v.commit || '—');
-    const be = v.behind;
-    if (typeof be === 'number' && be > 0) {
-      if (beh) { beh.textContent = be + ' commit' + (be > 1 ? 's' : '') + ' behind'; beh.className = 'badge badge-yellow'; }
-      const btn = $('btn-update');
-      if (btn) btn.style.display = 'inline-flex';
-    } else if (be === 0) {
-      if (beh) { beh.textContent = 'up to date'; beh.className = 'badge badge-green'; }
-      const btn = $('btn-update');
-      if (btn) btn.style.display = 'none';
-    } else {
-      if (beh) { beh.textContent = '—'; beh.className = 'badge badge-dim'; }
+    if (com) com.textContent = v.git_ok ? '#' + (v.commit || '—') : '—';
+    if (beh) {
+      if (!v.git_ok) {
+        beh.textContent = 'no git repo';
+        beh.className = 'badge badge-dim';
+      } else {
+        beh.textContent = 'tap Check';
+        beh.className = 'badge badge-dim';
+      }
     }
+    const btn = $('btn-update');
+    if (btn) btn.style.display = 'none';
   } catch (e) {
     const cur = $('v-current');
     if (cur) cur.textContent = 'error';
@@ -774,60 +773,65 @@ async function checkUpdate() {
   const log = $('updateLog');
   if (!log) return;
   log.style.display = 'block';
-  log.textContent = 'Checking…';
-  try {
-    const v = await api('/api/version');
-    log.textContent = (v.history || []).join('\n') || 'No history';
-    if (v.can_update) {
-      log.textContent += '\n\n⬇ Update available (' + v.behind + ' commits behind)';
-      const btn = $('btn-update');
-      if (btn) btn.style.display = 'inline-flex';
-    } else {
-      log.textContent += '\n\n✓ Up to date';
-    }
-  } catch (e) { log.textContent = 'Error: ' + e.message; }
-}
-
-async function doUpdate() {
-  const log = $('updateLog');
-  if (!log) return;
-  log.style.display = 'block';
-  log.textContent = 'Pulling…';
+  log.textContent = 'Fetching from GitHub…';
   const btn = $('btn-update');
   if (btn) btn.disabled = true;
   try {
-    const r = await api('/api/update/pull', { method: 'POST' });
-    log.textContent = r.output || 'Done';
-    setTimeout(loadVersion, 2000);
+    const v = await api('/api/update/check', { method: 'POST' });
+    if (v.status === 'error') {
+      log.textContent = '✗ ' + (v.error || 'check failed');
+      return;
+    }
+    const history = (v.history || []).join('\n') || '(no history)';
+    if (v.can_update) {
+      log.textContent = history + '\n\n⬇ ' + v.behind + ' commit' + (v.behind > 1 ? 's' : '') + ' behind';
+      if (btn) { btn.style.display = 'inline-flex'; btn.disabled = false; }
+      const beh = $('v-behind');
+      if (beh) { beh.textContent = v.behind + ' behind'; beh.className = 'badge badge-yellow'; }
+    } else {
+      log.textContent = history + '\n\n✓ Up to date (' + v.current_version + ')';
+      if (btn) btn.style.display = 'none';
+      const beh = $('v-behind');
+      if (beh) { beh.textContent = 'up to date'; beh.className = 'badge badge-green'; }
+    }
   } catch (e) { log.textContent = 'Error: ' + e.message; }
   if (btn) btn.disabled = false;
+}
+
+async function doUpdate() {
+  showModal('Pull Update', 'Pull latest code from GitHub?<br>The web server will restart.', 'Pull', async () => {
+    const log = $('updateLog');
+    if (log) { log.style.display = 'block'; log.textContent = 'Pulling…'; }
+    const btn = $('btn-update');
+    if (btn) btn.disabled = true;
+    try {
+      const r = await api('/api/update/pull', { method: 'POST' });
+      if (log) log.textContent = r.output || 'Done. Version: ' + (r.version || '?');
+      setTimeout(loadVersion, 3000);
+    } catch (e) { if (log) log.textContent = 'Error: ' + e.message; }
+    if (btn) btn.disabled = false;
+  });
 }
 
 async function doRollback() {
   showModal('Rollback', 'Rollback to the previous commit?<br>Local changes will be lost.', 'Rollback', async () => {
     const log = $('updateLog');
-    if (log) {
-      log.style.display = 'block';
-      log.textContent = 'Rolling back…';
-    }
+    if (log) { log.style.display = 'block'; log.textContent = 'Rolling back…'; }
     try {
       const r = await api('/api/update/rollback', { method: 'POST', body: JSON.stringify({ steps: 1 }) });
-      if (log) log.textContent = r.output || 'Done';
+      if (log) log.textContent = (r.output || 'Done') + '\nVersion: ' + (r.version || '?');
       setTimeout(loadVersion, 3000);
     } catch (e) { if (log) log.textContent = 'Error: ' + e.message; }
   });
 }
 
 async function doReinstall() {
-  showModal('Reinstall', 'Reinstall NERMANA?<br>Models will be preserved. Check the server terminal for progress.', 'Reinstall', async () => {
+  showModal('Reinstall', 'Reinstall NERMANA?<br>Models preserved. Server terminal shows progress.', 'Reinstall', async () => {
     const log = $('updateLog');
-    if (log) {
-      log.style.display = 'block';
-      log.textContent = 'Reinstalling… (check server terminal for progress)';
-    }
+    if (log) { log.style.display = 'block'; log.textContent = 'Reinstalling…'; }
     try {
       const r = await api('/api/reinstall', { method: 'POST' });
-      if (log) log.textContent = r.output || 'Reinstall completed';
+      if (log) log.textContent = (r.output || 'Done') + '\nVersion: ' + (r.version || '?');
     } catch (e) { if (log) log.textContent = 'Error: ' + e.message; }
   });
 }

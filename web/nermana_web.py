@@ -1033,54 +1033,99 @@ def api_auto_tune_log():
 
 # ── Version & Updates ────────────────────────────
 
+def _git(cmd, timeout=10):
+    """Run a git command in BASE, return (returncode, stdout, stderr)."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(BASE)] + cmd,
+            capture_output=True, text=True, timeout=timeout,
+        )
+        return r.returncode, r.stdout.strip(), r.stderr.strip()
+    except subprocess.TimeoutExpired:
+        return -1, "", "timeout"
+    except FileNotFoundError:
+        return -2, "", "git not found"
+
+def _current_version():
+    vf = BASE / "VERSION"
+    if vf.exists():
+        for line in vf.read_text(encoding='utf-8').splitlines():
+            if line.startswith("NERMANA_VERSION="):
+                return line.split("=", 1)[1].strip().strip('"').strip("'")
+    return "unknown"
+
 @app.route('/api/version')
 def api_version():
-    git_dir = str(BASE)
-    vfile = BASE / "VERSION"
-    current = vfile.read_text(encoding='utf-8', errors='replace').strip() if vfile.exists() else "unknown"
-    # git info
-    behind = "?"
-    try:
-        r = subprocess.run(["git", "-C", git_dir, "rev-list", "--count", "HEAD..origin/main"],
-                           capture_output=True, text=True, timeout=8)
-        if r.returncode == 0:
-            behind = int(r.stdout.strip())
-    except: pass
-    try:
-        r = subprocess.run(["git", "-C", git_dir, "rev-parse", "--short", "HEAD"],
-                           capture_output=True, text=True, timeout=5)
-        commit = r.stdout.strip() if r.returncode == 0 else "?"
-    except: commit = "?"
-    try:
-        r = subprocess.run(["git", "-C", git_dir, "log", "--oneline", "-3"],
-                           capture_output=True, text=True, timeout=5)
-        history = r.stdout.strip().splitlines() if r.returncode == 0 else []
-    except: history = []
+    """Local version info — fast, no network."""
+    rc, commit, _ = _git(["rev-parse", "--short", "HEAD"])
+    rc2, history, _ = _git(["log", "--oneline", "-3"])
+    is_git = rc == 0
     return jsonify({
-        "current_version": current,
-        "commit": commit,
+        "current_version": _current_version(),
+        "commit": commit if is_git else "—",
+        "behind": None,
+        "can_update": False,
+        "history": history.splitlines() if rc2 == 0 else [],
+        "git_ok": is_git,
+    })
+
+@app.route('/api/update/check', methods=['POST'])
+def api_update_check():
+    """Fetch from remote and report behind count."""
+    # First fetch
+    rc, _, err = _git(["fetch", "--tags", "origin"], timeout=30)
+    if rc != 0:
+        return jsonify({"status": "error", "error": f"git fetch failed: {err[:200]}"})
+    # Now count behind
+    rc, out, _ = _git(["rev-list", "--count", "HEAD..origin/main"], timeout=10)
+    if rc != 0:
+        # Try master instead of main
+        rc, out, _ = _git(["rev-list", "--count", "HEAD..origin/master"], timeout=10)
+    if rc != 0:
+        return jsonify({"status": "error", "error": "cannot compare with remote (shallow clone?)"})
+    behind = int(out) if out else 0
+    # Get recent log
+    _, history, _ = _git(["log", "--oneline", "-5"])
+    return jsonify({
+        "status": "ok",
         "behind": behind,
-        "can_update": isinstance(behind, int) and behind > 0,
-        "history": history,
+        "can_update": behind > 0,
+        "history": history.splitlines() if history else [],
+        "current_version": _current_version(),
     })
 
 @app.route('/api/update/pull', methods=['POST'])
 def api_update_pull():
-    out = _run(f"cd {BASE} && git fetch --tags && git pull --ff-only")
-    return jsonify({"status": "done", "output": out})
+    out = _run(f"cd {BASE} && git pull --ff-only 2>&1")
+    # Refresh VERSION after pull
+    return jsonify({
+        "status": "done",
+        "output": out[-500:],
+        "version": _current_version(),
+    })
 
 @app.route('/api/update/rollback', methods=['POST'])
 def api_update_rollback():
     steps = request.json.get("steps", 1) if request.json else 1
     try: steps = max(1, min(int(steps), 10))
     except: steps = 1
-    out = _run(f"cd {BASE} && git checkout HEAD~{steps}")
-    return jsonify({"status": "done" if "error" not in out else "error", "output": out})
+    # Check how far back we can go
+    rc, total, _ = _git(["rev-list", "--count", "HEAD"])
+    total = int(total) if rc == 0 and total else 0
+    if total <= steps:
+        return jsonify({"status": "error", "output": f"Only {total} commit(s) available, cannot go back {steps}"})
+    out = _run(f"cd {BASE} && git checkout HEAD~{steps} 2>&1")
+    new_ver = _current_version()
+    return jsonify({
+        "status": "done" if "error" not in out.lower() else "error",
+        "output": out[-500:],
+        "version": new_ver,
+    })
 
 @app.route('/api/reinstall', methods=['POST'])
 def api_reinstall():
-    out = _run(f"cd {BASE} && bash install.sh --quick")
-    return jsonify({"status": "done", "output": out})
+    out = _run(f"cd {BASE} && bash install.sh --quick 2>&1")
+    return jsonify({"status": "done", "output": out[-500:], "version": _current_version()})
 
 @app.route('/css/<path:filename>')
 def css_static(filename):

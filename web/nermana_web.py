@@ -38,7 +38,7 @@ def _read_cfg():
 
 def _write_cfg(key, val):
     if not CONFIG_FILE.exists():
-        return
+        CONFIG_FILE.write_text("")
     content = CONFIG_FILE.read_text()
     if re.search(rf'^{key}=', content, re.M):
         content = re.sub(rf'^{key}=.*', f'{key}={val}', content, flags=re.M)
@@ -106,6 +106,12 @@ def _fm_stat(p: Path):
 # Tool exchanges are stored here as proper message turns (see _commit_tool_exchange).
 _web_history      = []
 _web_history_lock = threading.Lock()
+_MAX_HISTORY      = 200
+
+def _trim_history():
+    with _web_history_lock:
+        while len(_web_history) > _MAX_HISTORY:
+            _web_history.pop(0)
 
 def _is_online():
     try:
@@ -162,6 +168,7 @@ def _commit_tool_exchange(user_msg, tool_kind, tool_query, tool_result, final_re
             "role": "assistant",
             "content": final_reply
         })
+    _trim_history()
     # Also write to disk buffer so bot-side memory sees it
     _store_webui_to_buffer(user_msg, final_reply)
 
@@ -351,6 +358,7 @@ def api_chat():
     # Snapshot history for this request BEFORE appending the new user message
     with _web_history_lock:
         _web_history.append({"role": "user", "content": user_msg})
+        _trim_history()
         # ctx_messages: everything except the just-appended user message
         ctx_messages = list(_web_history[-14:-1])
 
@@ -366,7 +374,9 @@ def api_chat():
             yield f"data: {json.dumps({'text': resp, 'done': True, 'offline': True})}\n\n"
             return
 
-        # PROBLEM 2: force-search pre-flight for recent/time-sensitive queries
+        messages = ctx_messages + [{"role": "user", "content": user_msg}]
+
+        # force-search pre-flight for recent/time-sensitive queries
         _force_q = should_force_search(user_msg) if online else None
         if _force_q:
             _write_pipeline_event("FORCE_SEARCH", {"query": _force_q})
@@ -388,7 +398,7 @@ def api_chat():
             # Second pass: synthesize from real search data
             system2  = _build_webui_system(user_msg=user_msg, tool_ctx=_tool_ctx, online=online)
             resp2    = ""
-            for _chunk in _llm_stream_tokens(messages, system2, cfg):
+            for _chunk in _llm_stream_tokens(ctx_messages + [{"role": "user", "content": user_msg}], system2, cfg):
                 resp2 += _chunk
                 yield f'data: {json.dumps({"text": _chunk})}\n\n'
             _clean2 = re.sub(r'\*[^*]+\*', '', resp2).strip()
@@ -401,8 +411,7 @@ def api_chat():
             return
 
         # Normal path
-        system   = _build_webui_system(user_msg=user_msg, online=online)
-        messages = ctx_messages + [{"role": "user", "content": user_msg}]
+        system = _build_webui_system(user_msg=user_msg, online=online)
 
         full  = ""
         state = "buffering"
@@ -613,8 +622,8 @@ def api_files_rename():
     if not target or not target.exists():
         return _fm_err("not found", 404)
     new_name = data.get("name", "").strip()
-    if not new_name:
-        return _fm_err("new name required")
+    if not new_name or ".." in new_name or "/" in new_name:
+        return _fm_err("invalid name")
     new_path = target.parent / new_name
     if new_path.exists():
         return _fm_err("target already exists", 409)
@@ -684,7 +693,7 @@ def api_files_upload():
         return _fm_err("invalid path")
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
-        file.save(target)
+        file.save(str(target))
         return jsonify({"status": "ok", "path": dest_path, "size": target.stat().st_size})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -839,6 +848,8 @@ def api_model_download():
     file = data.get('file')
     if not url or not file:
         return jsonify({"error": "missing"}), 400
+    if ".." in file or "/" in file:
+        return jsonify({"error": "invalid file"}), 400
     if _dl_state["active"]:
         return jsonify({"error": "busy"}), 409
     dest = BASE / "models" / file
@@ -889,8 +900,8 @@ def api_model_switch():
 def api_model_delete():
     data = request.json
     file = data.get('file')
-    if not file:
-        return jsonify({"error": "no file"}), 400
+    if not file or ".." in file or "/" in file:
+        return jsonify({"error": "invalid file"}), 400
     path = BASE / "models" / file
     cfg  = _read_cfg()
     active = cfg.get("LLAMA_MODEL_PATH", "")
@@ -936,8 +947,9 @@ def api_diagnostics():
         from diagnostics import get_latest, run_and_persist
         cached = get_latest()
         if not cached:
-            cached = _run(lambda: run_and_persist())
-        return jsonify(cached)
+            cached = run_and_persist()
+        from dataclasses import asdict
+        return jsonify(asdict(cached) if hasattr(cached, '__dataclass_fields__') else cached)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -1060,6 +1072,8 @@ def api_update_pull():
 @app.route('/api/update/rollback', methods=['POST'])
 def api_update_rollback():
     steps = request.json.get("steps", 1) if request.json else 1
+    try: steps = max(1, min(int(steps), 10))
+    except: steps = 1
     out = _run(f"cd {BASE} && git checkout HEAD~{steps}")
     return jsonify({"status": "done" if "error" not in out else "error", "output": out})
 
@@ -1068,9 +1082,19 @@ def api_reinstall():
     out = _run(f"cd {BASE} && bash install.sh --quick")
     return jsonify({"status": "done", "output": out})
 
+@app.route('/css/<path:filename>')
+def css_static(filename):
+    return Response((Path(__file__).parent / "css" / filename).read_bytes(),
+                    mimetype="text/css")
+
+@app.route('/js/<path:filename>')
+def js_static(filename):
+    return Response((Path(__file__).parent / "js" / filename).read_bytes(),
+                    mimetype="application/javascript")
+
 @app.route('/')
 def index():
-    return Response(open(Path(__file__).parent / "index.html").read(), mimetype="text/html")
+    return Response((Path(__file__).parent / "index.html").read_text(), mimetype="text/html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)

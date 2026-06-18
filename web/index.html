@@ -7,286 +7,12 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#07080c">
 <title>NERMANA</title>
-<style>
-:root{
-  --bg:#07080c;--surface:#0e1017;--surface2:#141721;--surface3:#1c2030;
-  --border:#1e2337;--border2:#2a2f4a;
-  --accent:#00c8ff;--accent2:#7c5cfc;--accent3:#00e676;--accent4:#ff5252;
-  --text:#e2e8f0;--text2:#94a3b8;--dim:#4a5070;
-  --yellow:#ffd740;--orange:#ff9100;--pink:#ff4081;--cyan:#00e5ff;
-  --mono:'JetBrains Mono','Fira Code',Cascadia Code,monospace;
-  --radius:12px;--radius-sm:6px;--radius-xl:20px;
-  --nav-h:48px;--tab-h:50px;
-  --safe-b:env(safe-area-inset-bottom,0px);--safe-t:env(safe-area-inset-top,0px);
-  --shadow:0 2px 20px rgba(0,0,0,.5);
-  --font:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-}
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
-  font-family:var(--font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-::selection{background:var(--accent);color:#000}
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px}
-button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;outline:none;background:none;color:inherit}
-input,textarea{font-family:inherit;font-size:inherit;outline:none;border:none;background:none;color:inherit}
-a{color:var(--accent);text-decoration:none}
-#app{display:flex;flex-direction:column;height:100%;max-width:900px;margin:0 auto;width:100%}
-
-/* ── Top bar ─────────────────────────── */
-.topbar{
-  height:calc(var(--nav-h) + var(--safe-t));padding-top:var(--safe-t);
-  background:var(--surface);border-bottom:1px solid var(--border);
-  display:flex;align-items:center;padding-left:14px;padding-right:14px;gap:10px;
-  flex-shrink:0;z-index:10;
-}
-.logo{font-family:var(--mono);font-weight:800;font-size:15px;color:var(--accent);letter-spacing:.08em;flex:1}
-.logo sub{font-size:9px;color:var(--dim);font-weight:400;letter-spacing:0;margin-left:2px}
-.status-group{display:flex;align-items:center;gap:12px}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--dim);flex-shrink:0;transition:all .4s}
-.dot.on{background:var(--accent3);box-shadow:0 0 8px var(--accent3)}
-.dot.off{background:var(--accent4);box-shadow:0 0 8px var(--accent4)}
-.dot.warn{background:var(--yellow);box-shadow:0 0 8px var(--yellow)}
-.s-label{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;display:flex;align-items:center;gap:5px}
-
-/* ── Pages ──────────────────────────── */
-.pages{flex:1;overflow:hidden;position:relative;background:var(--bg)}
-.page{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:none;padding:12px 12px 4px;opacity:0;transition:opacity .12s}
-.page.active{display:block;opacity:1}
-.page::-webkit-scrollbar{width:3px}
-
-/* ── Tab bar ────────────────────────── */
-.tabbar{
-  height:calc(var(--tab-h) + var(--safe-b));padding-bottom:var(--safe-b);
-  background:var(--surface);border-top:1px solid var(--border);
-  display:flex;flex-shrink:0;z-index:10;
-}
-.tab{
-  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-  color:var(--dim);font-size:9px;letter-spacing:.04em;font-weight:500;
-  transition:color .15s;position:relative;padding:4px 0;
-}
-.tab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0;transition:stroke .15s}
-.tab.active{color:var(--accent)}.tab.active::after{content:'';position:absolute;top:0;left:20%;right:20%;height:2px;background:var(--accent);border-radius:0 0 3px 3px}
-
-/* ── Card ───────────────────────────── */
-.card{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:14px;margin-bottom:10px;
-  transition:border-color .2s;
-}
-.card:hover{border-color:var(--border2)}
-.card-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
-
-/* ── Collapse ───────────────────────── */
-.collapse-header{
-  display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
-  padding:10px 14px;background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);margin-bottom:4px;
-  transition:border-color .15s;
-}
-.collapse-header:hover{border-color:var(--border2)}
-.collapse-header .ch-icon{font-size:12px;color:var(--dim);transition:transform .2s;flex-shrink:0}
-.collapse-header.open .ch-icon{transform:rotate(90deg)}
-.collapse-header .ch-title{flex:1;font-size:12px;font-weight:600;letter-spacing:.03em}
-.collapse-header .ch-badge{font-size:9px;padding:2px 7px;border-radius:99px;background:var(--surface3);color:var(--text2)}
-.collapse-body{overflow:hidden;max-height:0;transition:max-height .3s ease;margin-bottom:8px}
-.collapse-body.open{max-height:2000px}
-.collapse-body-inner{padding:4px 0}
-
-/* ── Buttons ────────────────────────── */
-.btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:5px;
-  padding:7px 14px;border-radius:var(--radius-sm);
-  background:var(--surface3);color:var(--text);font-size:12px;font-weight:500;
-  transition:all .12s;white-space:nowrap;border:1px solid var(--border);
-}
-.btn:active{transform:scale(.97)}
-.btn-primary{background:var(--accent);color:#000;border-color:var(--accent);font-weight:600}
-.btn-primary:active{background:#00b8e6}
-.btn-danger{background:rgba(255,82,82,.12);color:var(--accent4);border-color:rgba(255,82,82,.25)}
-.btn-ghost{background:transparent;border-color:transparent;color:var(--text2)}
-.btn-sm{padding:5px 10px;font-size:11px}
-.btn-icon{width:32px;height:32px;padding:0;border-radius:var(--radius-sm)}
-.btn-group{display:flex;gap:6px;flex-wrap:wrap}
-
-/* ── Badge ──────────────────────────── */
-.badge{font-size:10px;padding:1px 8px;border-radius:99px;font-weight:600;display:inline-flex;align-items:center;gap:3px}
-.badge-accent{background:rgba(0,200,255,.1);color:var(--accent);border:1px solid rgba(0,200,255,.2)}
-.badge-green{background:rgba(0,230,118,.1);color:var(--accent3);border:1px solid rgba(0,230,118,.2)}
-.badge-red{background:rgba(255,82,82,.1);color:var(--accent4);border:1px solid rgba(255,82,82,.2)}
-.badge-dim{background:transparent;color:var(--dim);border:1px solid var(--border)}
-.badge-yellow{background:rgba(255,215,64,.1);color:var(--yellow);border:1px solid rgba(255,215,64,.2)}
-
-/* ── Form fields ────────────────────── */
-.field{margin-bottom:12px}
-.field label{font-size:11px;color:var(--text2);display:block;margin-bottom:4px;font-weight:500}
-.field input,.field select{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:8px 11px;border-radius:var(--radius-sm);font-size:13px;transition:border-color .15s}
-.field input:focus,.field select:focus{border-color:var(--accent)}
-.field input::placeholder{color:var(--dim)}
-.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
-.toggle-lbl{font-size:13px;font-weight:500}
-.toggle{width:40px;height:24px;background:var(--border2);border-radius:12px;position:relative;flex-shrink:0;cursor:pointer;transition:background .2s}
-.toggle.on{background:var(--accent)}
-.toggle::after{content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .2s}
-.toggle.on::after{transform:translateX(16px)}
-
-/* ── Section title ──────────────────── */
-.stitle{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-
-/* ── Grid ───────────────────────────── */
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px}
-@media(max-width:480px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr 1fr}}
-
-/* ── Stat box ───────────────────────── */
-.stat-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 10px;text-align:center}
-.stat-num{font-size:28px;font-weight:800;font-family:var(--mono);line-height:1.1}
-.stat-num.lt{color:var(--accent3)}.stat-num.st{color:var(--yellow)}.stat-num.buf{color:var(--accent)}.stat-num.jk{color:var(--dim)}
-.stat-lbl{font-size:10px;color:var(--text2);margin-top:3px;text-transform:uppercase;letter-spacing:.05em}
-
-/* ── Loading ────────────────────────── */
-.skeleton{background:linear-gradient(90deg,var(--surface2) 25%,var(--surface3) 50%,var(--surface2) 75%);background-size:200% 100%;animation:shimmer 1.5s infinite;border-radius:var(--radius-sm)}
-@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
-.loading-dots::after{content:'';animation:dots 1.5s steps(4,end) infinite}
-@keyframes dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}100%{content:''}}
-
-/* ══════════════════════════════════════
-   CHAT
-══════════════════════════════════════ */
-#page-chat{padding:0;display:flex;flex-direction:column}
-#page-chat.active{display:flex}
-.chat-hdr{display:flex;align-items:center;justify-content:space-between;padding:8px 14px 2px;flex-shrink:0}
-.chat-hdr-l{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:8px}
-.chat-hdr-r{display:flex;gap:4px}
-.chat-msgs{flex:1;overflow-y:auto;padding:8px 12px 4px;display:flex;flex-direction:column;gap:8px}
-.msg{max-width:85%;word-break:break-word;padding:9px 13px;border-radius:16px;font-size:14px;line-height:1.5;animation:msgIn .15s ease-out;position:relative}
-@keyframes msgIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-.msg.user{align-self:flex-end;background:linear-gradient(135deg,#1c2248,#252d5a);color:var(--yellow);border-bottom-right-radius:4px}
-.msg.bot{align-self:flex-start;background:var(--surface2);border-bottom-left-radius:4px;border-left:2px solid var(--accent)}
-.msg.bot.streaming{border-left-color:var(--accent2)}
-.msg.bot.offline{border-left-color:var(--yellow)}
-.msg.tool{font-family:var(--mono);font-size:11px;color:var(--text2);align-self:flex-start;background:transparent;padding:2px 0;max-width:100%;animation:none}
-.msg .ts{font-size:9px;color:var(--dim);margin-top:4px;display:block;text-align:right}
-.chat-inp{display:flex;align-items:center;gap:8px;padding:8px 12px;padding-bottom:calc(8px + var(--safe-b));background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
-.chat-inp input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:22px;font-size:14px;min-width:0;transition:border-color .15s}
-.chat-inp input::placeholder{color:var(--dim)}
-.chat-inp input:focus{border-color:var(--accent)}
-.send-btn{width:40px;height:40px;border-radius:50%;background:var(--accent);color:#000;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:opacity .12s}
-.send-btn:active{opacity:.75}
-.send-btn svg{width:16px;height:16px;fill:currentColor}
-.chat-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--dim);font-size:13px;gap:6px}
-.chat-empty svg{width:48px;height:48px;stroke:var(--border2);fill:none;stroke-width:1}
-.typing{display:flex;gap:4px;padding:4px 0}
-.typing span{width:6px;height:6px;border-radius:50%;background:var(--dim);animation:bounce 1.4s ease-in-out infinite}
-.typing span:nth-child(2){animation-delay:.2s}
-.typing span:nth-child(3){animation-delay:.4s}
-@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
-
-/* ══════════════════════════════════════
-   PIPELINE (embedded in Dashboard)
-══════════════════════════════════════ */
-.pipe-filter{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
-.pipe-filter .pf-btn{font-size:10px;padding:4px 10px;border-radius:99px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);transition:all .12s}
-.pipe-filter .pf-btn.active{background:var(--accent);color:#000;border-color:var(--accent)}
-.pipe-log{font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:250px;overflow-y:auto}
-.pipe-evt{display:flex;gap:6px;padding:4px 0;border-bottom:1px solid rgba(30,35,54,.5);align-items:flex-start;line-height:1.4}
-.pipe-evt:last-child{border-bottom:none}
-.pipe-ts{color:var(--dim);min-width:50px;font-size:10px;flex-shrink:0;padding-top:1px}
-.pipe-stage{min-width:80px;font-weight:600;font-size:10px;flex-shrink:0;padding-top:1px;text-transform:uppercase;letter-spacing:.03em}
-.pipe-stage.USER{color:var(--yellow)}
-.pipe-stage.PRIMER{color:var(--accent2)}
-.pipe-stage.MAIN_LLM{color:var(--accent)}
-.pipe-stage.MEMORY_EVAL{color:var(--accent3)}
-.pipe-stage.TOOL{color:var(--orange)}
-.pipe-stage.FORCE_SEARCH{color:var(--pink)}
-.pipe-stage.ERROR{color:var(--accent4)}
-.pipe-stage.MEMORY_QUERY{color:var(--cyan)}
-.pipe-data{color:var(--text2);font-size:10px;word-break:break-all;flex:1}
-.pipe-empty{color:var(--dim);font-size:12px;padding:20px;text-align:center}
-
-/* ══════════════════════════════════════
-   DIAGNOSTICS (embedded in Dashboard)
-══════════════════════════════════════ */
-.diag-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-@media(max-width:480px){.diag-grid{grid-template-columns:1fr}}
-.diag-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px}
-.diag-card .dc-val{font-size:22px;font-weight:700;font-family:var(--mono)}
-.diag-card .dc-lbl{font-size:10px;color:var(--text2);margin-top:2px;text-transform:uppercase;letter-spacing:.05em}
-.diag-card .dc-bar{height:4px;border-radius:99px;background:var(--border2);margin-top:8px;overflow:hidden}
-.diag-card .dc-bar-fill{height:100%;border-radius:99px;transition:width .6s ease}
-.diag-list{font-size:12px;line-height:1.6}
-.diag-list .dl-item{padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:8px}
-.diag-list .dl-item:last-child{border-bottom:none}
-.diag-list .dl-label{color:var(--text2);min-width:100px;flex-shrink:0}
-.diag-list .dl-val{color:var(--text)}
-
-/* ══════════════════════════════════════
-   MODELS
-══════════════════════════════════════ */
-.mcard{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-bottom:8px;transition:border-color .15s}
-.mcard:hover{border-color:var(--border2)}
-.mcard-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.mcard-name{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
-.mcard-meta{font-size:11px;color:var(--text2);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap}
-.mcard-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
-.dl-progress{font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;margin-top:6px;color:var(--yellow)}
-.dl-bar{height:3px;background:var(--border2);border-radius:99px;margin-top:6px;overflow:hidden}
-.dl-bar-fill{height:100%;background:var(--accent);border-radius:99px;transition:width .3s;width:0%}
-.custom-dl{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-top:8px}
-
-/* ══════════════════════════════════════
-   FILES (FM)
-══════════════════════════════════════ */
-.fm-bread{font-family:var(--mono);font-size:11px;color:var(--text2);padding:4px 0 8px;word-break:break-all}
-.fm-entry{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:5px;cursor:pointer;transition:all .12s}
-.fm-entry:active{transform:scale(.99)}
-.fm-entry:hover{border-color:var(--border2)}
-.fm-entry .fe-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0}
-.fm-entry .fe-name{font-size:13px;flex:1;word-break:break-all}
-.fm-entry .fe-size{font-size:10px;color:var(--dim);font-family:var(--mono);flex-shrink:0}
-.fm-editor{display:none;margin-top:8px}
-.fm-editor.open{display:block}
-.fm-textarea{width:100%;min-height:200px;max-height:50vh;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:12px;font-family:var(--mono);font-size:12px;border-radius:var(--radius-sm);resize:vertical;line-height:1.6}
-.fm-textarea:focus{border-color:var(--accent)}
-.fm-actions{display:flex;gap:6px;margin-top:8px}
-
-/* ── Toast ──────────────────────────── */
-#toast{position:fixed;bottom:calc(var(--tab-h) + var(--safe-b) + 16px);left:50%;transform:translateX(-50%) translateY(10px);background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:10px 22px;border-radius:99px;font-size:13px;opacity:0;transition:all .25s;pointer-events:none;z-index:999;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;box-shadow:var(--shadow)}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-#toast.ok{border-color:var(--accent3);color:var(--accent3)}
-#toast.err{border-color:var(--accent4);color:var(--accent4)}
-
-/* ── Empty state ────────────────────── */
-.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--dim);text-align:center;gap:6px}
-.empty-state svg{width:40px;height:40px;stroke:var(--border2);fill:none;stroke-width:1}
-.empty-state .es-title{font-size:14px;font-weight:600;color:var(--text2)}
-.empty-state .es-desc{font-size:12px}
-
-/* ── Pulse animation ────────────────── */
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-.pulse{animation:pulse 2s ease-in-out infinite}
-
-/* ── Misc ───────────────────────────── */
-.flex{display:flex;gap:6px}
-.flex-c{display:flex;flex-direction:column;gap:6px}
-.flex-w{display:flex;gap:6px;flex-wrap:wrap}
-.mono{font-family:var(--mono)}
-.dim{color:var(--dim)}
-.text2{color:var(--text2)}
-.mt-4{margin-top:4px}.mt-8{margin-top:8px}.mb-8{margin-bottom:8px}.gap-4{gap:4px}
-.trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-
-/* ── Token input with reveal ────────── */
-.token-row{display:flex;align-items:center;gap:6px}
-.token-row input{flex:1}
-</style>
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 <div id="app">
 
-  <!-- ── Top bar ──────────────── -->
+  <!-- ── Top bar ──── -->
   <div class="topbar">
     <div class="logo">NERMANA<sub>v4.7.2</sub></div>
     <div class="status-group">
@@ -295,10 +21,10 @@ a{color:var(--accent);text-decoration:none}
     </div>
   </div>
 
-  <!-- ── Pages ────────────────── -->
+  <!-- ── Pages ──── -->
   <div class="pages">
 
-    <!-- ═══════════ DASHBOARD ═══════════ -->
+    <!-- ═══ DASHBOARD ═══ -->
     <div class="page active" id="page-dashboard">
 
       <!-- Status row -->
@@ -318,7 +44,7 @@ a{color:var(--accent);text-decoration:none}
       </div>
 
       <!-- Version & System -->
-      <div class="card" id="versionCard">
+      <div class="card">
         <div class="card-label">📦 Version &amp; System
           <button class="btn btn-ghost btn-sm" onclick="loadVersion()" style="margin-left:auto">↻</button>
         </div>
@@ -328,12 +54,12 @@ a{color:var(--accent);text-decoration:none}
           <span id="v-behind" class="badge"></span>
         </div>
         <div class="flex-w" style="margin-top:8px">
-          <button class="btn btn-sm" onclick="checkUpdate()">📡 Check Updates</button>
-          <button class="btn btn-sm btn-primary" id="btn-update" style="display:none" onclick="doUpdate()">⬇ Pull Update</button>
-          <button class="btn btn-sm" id="btn-rollback" onclick="doRollback()">↩ Rollback</button>
+          <button class="btn btn-sm" onclick="checkUpdate()">📡 Check</button>
+          <button class="btn btn-sm btn-primary" id="btn-update" style="display:none" onclick="doUpdate()">⬇ Pull</button>
+          <button class="btn btn-sm" onclick="doRollback()">↩ Rollback</button>
           <button class="btn btn-sm btn-danger" onclick="doReinstall()">🔄 Reinstall</button>
         </div>
-        <div id="updateLog" style="display:none;margin-top:8px;font-family:var(--mono);font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:120px;overflow-y:auto;color:var(--text2);white-space:pre-wrap"></div>
+        <div class="update-log" id="updateLog"></div>
       </div>
 
       <!-- Memory stats -->
@@ -357,7 +83,7 @@ a{color:var(--accent);text-decoration:none}
       <div class="collapse-header" onclick="toggleCollapse('health')" id="ch-health">
         <span class="ch-icon">▶</span>
         <span class="ch-title">System Health</span>
-        <span class="ch-badge" id="ch-badge-health">load</span>
+        <span class="ch-badge">diagnostics</span>
       </div>
       <div class="collapse-body" id="cb-health">
         <div class="collapse-body-inner">
@@ -382,7 +108,7 @@ a{color:var(--accent);text-decoration:none}
       <div class="collapse-header" onclick="toggleCollapse('activity')" id="ch-activity">
         <span class="ch-icon">▶</span>
         <span class="ch-title">Live Activity</span>
-        <span class="ch-badge" id="ch-badge-activity">LIVE</span>
+        <span class="ch-badge">LIVE</span>
       </div>
       <div class="collapse-body" id="cb-activity">
         <div class="collapse-body-inner">
@@ -402,7 +128,7 @@ a{color:var(--accent);text-decoration:none}
       <div class="collapse-header" onclick="toggleCollapse('memory')" id="ch-memory">
         <span class="ch-icon">▶</span>
         <span class="ch-title">Memory &amp; Mood</span>
-        <span class="ch-badge" id="ch-badge-memory">—</span>
+        <span class="ch-badge">—</span>
       </div>
       <div class="collapse-body" id="cb-memory">
         <div class="collapse-body-inner">
@@ -412,7 +138,7 @@ a{color:var(--accent);text-decoration:none}
             <div class="stat-box"><div id="statBuf" class="stat-num buf">—</div><div class="stat-lbl">Buffer</div></div>
             <div class="stat-box"><div id="statJunk" class="stat-num jk">—</div><div class="stat-lbl">Junk</div></div>
           </div>
-          <div id="memMood" class="card" style="margin-top:4px;display:flex;align-items:center;gap:10px">
+          <div class="card" style="margin-top:4px;display:flex;align-items:center;gap:10px">
             <span style="font-size:22px" id="memMoodIcon">🧠</span>
             <span style="font-size:13px;color:var(--text2)" id="memMoodText">Loading…</span>
           </div>
@@ -427,7 +153,7 @@ a{color:var(--accent);text-decoration:none}
       <div class="collapse-header" onclick="toggleCollapse('settings')" id="ch-settings">
         <span class="ch-icon">▶</span>
         <span class="ch-title">Quick Settings</span>
-        <span class="ch-badge" id="ch-badge-settings">edit</span>
+        <span class="ch-badge">edit</span>
       </div>
       <div class="collapse-body" id="cb-settings">
         <div class="collapse-body-inner">
@@ -441,13 +167,13 @@ a{color:var(--accent);text-decoration:none}
             <div class="card-label">🧠 Memory</div>
             <div class="field"><label>Eval Interval (messages)</label><input type="number" id="s-meval"></div>
             <div class="field"><label>Buffer Window</label><input type="number" id="s-bufw"></div>
-            <div class="field"><label>LT Score Minimum (0-10)</label><input type="number" id="s-lts" min="0" max="10"></div>
+            <div class="field"><label>LT Score Min (0-10)</label><input type="number" id="s-lts" min="0" max="10"></div>
             <div class="field"><label>Memory Max Tokens</label><input type="number" id="s-mmtok"></div>
           </div>
           <div class="card">
             <div class="card-label">⚙ System</div>
             <div class="field"><label>Default City</label><input type="text" id="s-city"></div>
-            <div class="field"><label>Idle Sleep (minutes, 0=off)</label><input type="number" id="s-idle" min="0"></div>
+            <div class="field"><label>Idle Sleep (min, 0=off)</label><input type="number" id="s-idle" min="0"></div>
             <div class="field"><label>Proactivity Level</label><input type="number" id="s-pro" min="0" max="5"></div>
             <div class="field"><label>Search Results</label><input type="number" id="s-sr" min="1" max="10"></div>
             <div class="toggle-row"><span class="toggle-lbl">Semantic Memory</span><div class="toggle" id="t-semantic" onclick="toggleSwitch(this)"></div></div>
@@ -458,10 +184,9 @@ a{color:var(--accent);text-decoration:none}
           </div>
         </div>
       </div>
-
     </div>
 
-    <!-- ═══════════ CHAT ═══════════ -->
+    <!-- ═══ CHAT ═══ -->
     <div class="page" id="page-chat">
       <div class="chat-hdr">
         <span class="chat-hdr-l"><span id="chatStatus">ready</span></span>
@@ -485,10 +210,8 @@ a{color:var(--accent);text-decoration:none}
       </div>
     </div>
 
-    <!-- ═══════════ BOT ═══════════ -->
+    <!-- ═══ BOT ═══ -->
     <div class="page" id="page-bot">
-
-      <!-- Status -->
       <div class="grid-2">
         <div class="card" style="text-align:center;padding:16px 10px">
           <div style="font-size:28px;font-weight:800;font-family:var(--mono);color:var(--accent)" id="bot-status-text">—</div>
@@ -499,8 +222,6 @@ a{color:var(--accent);text-decoration:none}
           <div style="font-size:10px;color:var(--text2);margin-top:2px">Mode</div>
         </div>
       </div>
-
-      <!-- Controls -->
       <div class="card">
         <div class="card-label">▶ Bot Controls</div>
         <div class="btn-group">
@@ -509,8 +230,6 @@ a{color:var(--accent);text-decoration:none}
           <button class="btn btn-sm" onclick="botCtl('restart')">↻ Restart</button>
         </div>
       </div>
-
-      <!-- Telegram -->
       <div class="card">
         <div class="card-label">✈ Telegram</div>
         <div class="field">
@@ -522,49 +241,45 @@ a{color:var(--accent);text-decoration:none}
         </div>
         <div class="flex-w">
           <button class="btn btn-sm btn-primary" onclick="saveTelegramToken()">💾 Save Token</button>
-          <button class="btn btn-sm" onclick="testTelegramToken()">📡 Test</button>
+          <button class="btn btn-sm" onclick="testTelegramToken()">📡 Test &amp; Identify</button>
         </div>
         <div class="toggle-row" style="margin-top:8px">
           <span class="toggle-lbl">Enable Telegram Bot</span>
           <div class="toggle" id="t-telegram" onclick="toggleSwitch(this)"></div>
         </div>
       </div>
-
-      <!-- Log -->
       <div class="card">
         <div class="card-label">📋 Bot Log</div>
         <button class="btn btn-sm" onclick="toggleLog()" id="logToggleBtn">Show Log</button>
-        <div class="log-viewer" id="botLog" style="display:none;margin-top:8px;font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-all;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;max-height:50vh;overflow-y:auto;line-height:1.6;color:var(--text2)"></div>
+        <div class="log-viewer" id="botLog"></div>
       </div>
     </div>
 
-    <!-- ═══════════ MODELS ═══════════ -->
+    <!-- ═══ MODELS ═══ -->
     <div class="page" id="page-models">
-
       <div class="card">
         <div class="card-label">🤖 Installed Models
           <button class="btn btn-ghost btn-sm" onclick="loadModels()" style="margin-left:auto">↻ Refresh</button>
         </div>
         <div id="modelList"><div class="skeleton" style="height:80px;margin-bottom:8px"></div></div>
-      </div>
-
-      <div class="card">
-        <div class="card-label">📥 Recommended Models</div>
-        <div id="recommendedList">
-          <div class="skeleton" style="height:60px;margin-bottom:6px"></div>
+        <div class="dl-progress" id="dlProgress" style="display:none">
+          <div class="progress-bar"><div class="progress-fill" id="dlBarFill"></div></div>
+          <span id="dlText" style="margin-top:4px;display:block">Starting…</span>
         </div>
       </div>
-
+      <div class="card">
+        <div class="card-label">📥 Recommended</div>
+        <div id="recommendedList"><div class="skeleton" style="height:60px;margin-bottom:6px"></div></div>
+      </div>
       <div class="custom-dl">
         <div class="stitle mb-8">⬇ Custom Download</div>
         <div class="field"><label>GGUF URL</label><input type="text" id="customUrl" placeholder="https://huggingface.co/…/model.gguf"></div>
         <div class="field"><label>Filename</label><input type="text" id="customFile" placeholder="model-name.gguf"></div>
         <button class="btn btn-sm" onclick="downloadCustom()">Download</button>
-        <div class="dl-progress" id="dlProgress" style="display:none"><div class="dl-bar"><div class="dl-bar-fill" id="dlBarFill"></div></div><span id="dlText">Starting…</span></div>
       </div>
     </div>
 
-    <!-- ═══════════ FILES ═══════════ -->
+    <!-- ═══ FILES ═══ -->
     <div class="page" id="page-files">
       <div class="flex-w mb-8">
         <button class="btn btn-sm btn-ghost" onclick="fmUp()">⬆ Up</button>
@@ -575,8 +290,7 @@ a{color:var(--accent);text-decoration:none}
         <button class="btn btn-sm" onclick="fmUploadToggle()">📤 Upload</button>
       </div>
       <div class="fm-bread mono" id="fmPath" style="cursor:pointer">/</div>
-      <div id="fmToolbar" style="display:none;margin-bottom:6px" class="btn-group"></div>
-      <div id="fmList"><div class="empty-state"><div class="es-title">Loading…</div></div></div>
+      <div id="fmList"><div class="skeleton" style="height:60px;margin-bottom:5px"></div></div>
       <div class="fm-editor" id="fmEditor">
         <div class="flex" style="align-items:center;justify-content:space-between;margin-bottom:6px">
           <span class="mono" style="font-size:12px;color:var(--text2)" id="fmEditPath"></span>
@@ -593,7 +307,7 @@ a{color:var(--accent);text-decoration:none}
       <div class="fm-editor" id="fmUpload" style="margin-top:8px">
         <div style="border:2px dashed var(--border2);border-radius:var(--radius-sm);padding:24px;text-align:center;color:var(--dim)">
           <input type="file" id="fmUploadInput" style="display:none" onchange="fmUploadFile(this)">
-          <button class="btn btn-sm" onclick="$_('fmUploadInput').click()">📤 Choose file</button>
+          <button class="btn btn-sm" onclick="$('fmUploadInput').click()">📤 Choose file</button>
           <span class="dim" style="font-size:12px;margin-left:6px">or tap to browse</span>
         </div>
       </div>
@@ -601,7 +315,7 @@ a{color:var(--accent);text-decoration:none}
 
   </div><!-- /pages -->
 
-  <!-- ── Tab bar (5) ────────────── -->
+  <!-- ── Tab bar (5) ──── -->
   <div class="tabbar">
     <button class="tab active" id="tab-dashboard" onclick="showPage('dashboard',this)">
       <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home
@@ -622,914 +336,21 @@ a{color:var(--accent);text-decoration:none}
 
 </div><!-- /app -->
 
+<!-- ── Toast ──── -->
 <div id="toast"></div>
 
-<script>
-// ═════════════════════════════════════════════════════════
-// UTILITIES
-// ═════════════════════════════════════════════════════════
-function $_(id){return document.getElementById(id)}
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
-async function api(url, opts={}){
-  const r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});
-  if(!r.ok){const e=await r.json().catch(()=>({error:r.statusText}));throw new Error(e.error||r.statusText)}
-  return r.json();
-}
-function toast(msg,type='ok'){
-  const el=$_('toast');el.textContent=msg;el.className='show '+type;
-  clearTimeout(el._t);el._t=setTimeout(()=>el.className='',2800);
-}
-function toggleSwitch(el){el.classList.toggle('on')}
-function toggleSet(id,v){const el=$_(id);if(el)el.classList.toggle('on',!!v)}
-
-// ── Collapse sections ────────────────────────────
-function toggleCollapse(id){
-  const h=$_('ch-'+id),b=$_('cb-'+id);
-  h.classList.toggle('open');b.classList.toggle('open');
-  // lazy load
-  if(b.classList.contains('open')){
-    if(id==='health'){if(!$_('diagHealth').dataset.loaded)loadDiagnostics()}
-    if(id==='memory'){loadMemStats();loadMood();loadReminders()}
-    if(id==='settings'){loadSettings()}
-    if(id==='activity'&&!window._pipeInit)initPipeline()
-  }
-}
-
-// ═════════════════════════════════════════════════════════
-// NAVIGATION
-// ═════════════════════════════════════════════════════════
-function showPage(id,btn){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  $_('page-'+id).classList.add('active');
-  if(btn)btn.classList.add('active');
-  const f={
-    dashboard:()=>loadDashboard(),
-    models:()=>loadModels(),
-    files:()=>fmGoHome(),
-    bot:()=>loadBotPage(),
-  }[id];
-  if(f)f();
-}
-
-// ═════════════════════════════════════════════════════════
-// STATUS POLL
-// ═════════════════════════════════════════════════════════
-async function pollStatus(){
-  try{
-    const s=await api('/api/status');
-    const dl=$_('dot-llm'),db=$_('dot-bot');
-    dl.className='dot '+(s.llm_server?'on':s.sleeping?'warn':'off');
-    db.className='dot '+(s.bot?'on':'off');
-  }catch(e){}
-}
-pollStatus();setInterval(pollStatus,8000);
-
-// ═════════════════════════════════════════════════════════
-// CHAT
-// ═════════════════════════════════════════════════════════
-let _chatBusy=false;
-let _chatAbort=null;
-
-function addMsg(who,text,id,extra=''){
-  const el=$_('chatMsgs');
-  const d=document.createElement('div');
-  d.className='msg '+who+(extra?' '+extra:'');
-  if(id)d.id=id;
-  d.textContent=text;
-  const es=$_('chatEmpty');
-  if(es&&es.parentNode===el)es.remove();
-  el.appendChild(d);
-  el.scrollTop=el.scrollHeight;
-  return d;
-}
-
-async function sendChat(){
-  if(_chatBusy)return;
-  const inp=$_('chatInput');
-  const text=inp.value.trim();
-  if(!text)return;
-  inp.value='';
-  _chatBusy=true;
-  $_('chatStatus').textContent='thinking…';
-  $_('sendBtn').style.opacity='.5';
-  addMsg('user',text);
-  const botId='bot-'+Date.now();
-  addMsg('bot','…',botId,'streaming');
-  const ti=document.createElement('div');
-  ti.className='typing';ti.id='typing-'+botId;
-  ti.innerHTML='<span></span><span></span><span></span>';
-  $_('chatMsgs').appendChild(ti);
-  $_('chatMsgs').scrollTop=$_('chatMsgs').scrollHeight;
-
-  let full='';
-  try{
-    const resp=await fetch('/api/chat',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:text})
-    });
-    const reader=resp.body.getReader();
-    const dec=new TextDecoder();
-    let buf='';
-    const typingEl=$_('typing-'+botId);
-    if(typingEl)typingEl.remove();
-
-    while(true){
-      const {done,value}=await reader.read();
-      if(done)break;
-      buf+=dec.decode(value,{stream:true});
-      const parts=buf.split('\n\n');
-      buf=parts.pop();
-      for(const part of parts){
-        if(!part.startsWith('data:'))continue;
-        try{
-          const d=JSON.parse(part.slice(5).trim());
-          if(d.offline){
-            const el=$_(botId);
-            if(el)el.classList.add('offline');
-          }
-          if(d.tool==='search'){
-            addMsg('tool','🔍 searching: '+(d.query||'…'),'tool-'+Date.now());
-          }
-          if(d.tool==='exec'){
-            addMsg('tool','⚙ running: '+(d.cmd||'…'),'tool-'+Date.now());
-          }
-          if(d.text){
-            full+=d.text;
-            const el=$_(botId);
-            if(el){
-              el.textContent=full;
-              $_('chatMsgs').scrollTop=$_('chatMsgs').scrollHeight;
-            }
-          }
-          if(d.done){
-            const el=$_(botId);
-            if(el)el.classList.remove('streaming');
-          }
-        }catch(e){}
-      }
-    }
-  }catch(e){
-    const typingEl=$_('typing-'+botId);
-    if(typingEl)typingEl.remove();
-    const el=$_(botId);
-    if(el)el.textContent='Error: '+(e.message||'connection lost');
-  }finally{
-    _chatBusy=false;
-    $_('chatStatus').textContent='ready';
-    $_('sendBtn').style.opacity='1';
-    const el=$_(botId);
-    if(el&&el.textContent==='…')el.textContent='(no response)';
-  }
-}
-
-async function clearChat(){
-  await fetch('/api/chat/clear',{method:'POST'});
-  $_('chatMsgs').innerHTML='<div class="msg bot">Chat cleared.</div>';
-  toast('Chat cleared');
-}
-
-// ═════════════════════════════════════════════════════════
-// PIPELINE SSE
-// ═════════════════════════════════════════════════════════
-let _pipeInit=false;
-let _pipeFilter='all';
-const _pipe=$_('pipeLog');
-
-function initPipeline(){
-  if(_pipeInit)return;_pipeInit=true;
-  const evt=new EventSource('/api/pipeline_stream');
-  evt.onmessage=e=>{
-    try{
-      const d=JSON.parse(e.data);
-      if(_pipeFilter!=='all'&&d.stage!==_pipeFilter)return;
-      const row=document.createElement('div');
-      row.className='pipe-evt';
-      const ds=typeof d.data==='object'?Object.values(d.data).join(' ').slice(0,140):String(d.data).slice(0,140);
-      row.innerHTML='<div class="pipe-ts">'+(d.ts_human||'')+'</div><div class="pipe-stage '+d.stage+'">'+d.stage+'</div><div class="pipe-data">'+esc(ds)+'</div>';
-      _pipe.prepend(row);
-      while(_pipe.children.length>100)_pipe.lastChild.remove();
-      if(_pipe.textContent==='Waiting for events…'||_pipe.querySelector('.pipe-empty'))_pipe.innerHTML='';
-    }catch(e){}
-  };
-  evt.onerror=()=>{};
-}
-
-function setPipeFilter(f,btn){
-  _pipeFilter=f;
-  document.querySelectorAll('.pf-btn').forEach(b=>b.classList.remove('active'));
-  if(btn)btn.classList.add('active');
-  Array.from(_pipe.children).forEach(row=>{
-    if(f==='all'){row.style.display='flex';return;}
-    const stage=row.querySelector('.pipe-stage');
-    row.style.display=stage&&stage.textContent===f?'flex':'none';
-  });
-}
-
-// ═════════════════════════════════════════════════════════
-// MEMORY (loaded in Dashboard)
-// ═════════════════════════════════════════════════════════
-async function loadMemStats(){
-  try{
-    const s=await api('/api/memory_stats');
-    $_('statLT').textContent=s.long_term||0;
-    $_('statST').textContent=s.short_term||0;
-    $_('statBuf').textContent=s.buffer||0;
-    $_('statJunk').textContent=s.junk||0;
-  }catch(e){}
-}
-async function loadMood(){
-  try{
-    const m=await api('/api/mood');
-    const icons={'happy':'😊','sad':'😢','curious':'🤔','neutral':'🧠','excited':'🤩','tired':'😴'};
-    $_('memMoodIcon').textContent=icons[m.label]||'🧠';
-    $_('memMoodText').textContent=m.line||'Neutral';
-  }catch(e){}
-}
-async function loadReminders(){
-  try{
-    const r=await api('/api/reminders');
-    const rems=r.reminders||[];
-    $_('remindersList').innerHTML=rems.length
-      ? rems.map(rm=>'<div class="mem-reminder" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-family:var(--mono);color:var(--accent);font-size:11px;min-width:48px">'+String(rm.hour).padStart(2,'0')+':'+String(rm.minute).padStart(2,'0')+'</span><span style="flex:1;color:var(--text2);font-size:12px">'+esc(rm.text)+'</span><span style="font-size:9px;color:var(--dim)">'+(rm.daily?'daily':'once')+'</span></div>').join('')
-      : '<span class="dim">No reminders set.</span>';
-  }catch(e){}
-}
-
-// ═════════════════════════════════════════════════════════
-// DIAGNOSTICS (loaded in Dashboard)
-// ═════════════════════════════════════════════════════════
-async function loadDiagnostics(){
-  $_('diagHealth').dataset.loaded='1';
-  try{
-    const d=await api('/api/diagnostics');
-    renderDiagnostics(d);
-  }catch(e){
-    $_('diagContent').innerHTML='<div class="card"><div class="card-label">🏥 System Health</div><div class="dim">Click "Run Now" to diagnose.</div></div>';
-  }
-}
-
-function renderDiagnostics(d){
-  const health=d||{};
-  const cpu=health.cpu_percent||0;
-  const mem=health.memory_percent||0;
-  const temp=health.temperature||'—';
-  const uptime=health.uptime_hours||'—';
-  const llm=health.llm_latency_ms||'—';
-
-  let diagHtml=`<div class="card">
-    <div class="card-label">🏥 System Health</div>
-    <div class="diag-grid">
-      <div class="diag-card">
-        <div class="dc-val" style="color:${cpu>80?'var(--accent4)':cpu>50?'var(--yellow)':'var(--accent3)'}">${cpu}%</div>
-        <div class="dc-lbl">CPU</div>
-        <div class="dc-bar"><div class="dc-bar-fill" style="width:${Math.min(cpu,100)}%;background:${cpu>80?'var(--accent4)':cpu>50?'var(--yellow)':'var(--accent3)'}"></div></div>
-      </div>
-      <div class="diag-card">
-        <div class="dc-val" style="color:${mem>80?'var(--accent4)':mem>50?'var(--yellow)':'var(--accent3)'}">${mem}%</div>
-        <div class="dc-lbl">Memory</div>
-        <div class="dc-bar"><div class="dc-bar-fill" style="width:${Math.min(mem,100)}%;background:${mem>80?'var(--accent4)':mem>50?'var(--yellow)':'var(--accent3)'}"></div></div>
-      </div>
-      <div class="diag-card"><div class="dc-val" style="color:var(--accent)">${temp}</div><div class="dc-lbl">Temp (°C)</div></div>
-      <div class="diag-card"><div class="dc-val" style="color:var(--accent)">${uptime}</div><div class="dc-lbl">Uptime (h)</div></div>
-      <div class="diag-card"><div class="dc-val" style="color:var(--accent)">${llm}</div><div class="dc-lbl">LLM Latency (ms)</div></div>
+<!-- ── Modal ──── -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title"></div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-actions">
+      <button class="btn" id="modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="modal-confirm">Confirm</button>
     </div>
-  </div>`;
+  </div>
+</div>
 
-  if(d.quality_scores&&d.quality_scores.length){
-    const avg=d.quality_scores.reduce((a,b)=>a+b,0)/d.quality_scores.length;
-    diagHtml+=`<div class="card">
-      <div class="card-label">⭐ Recent Quality (avg ${avg.toFixed(1)})</div>
-      <div class="flex-w">
-        ${d.quality_scores.slice(-10).map(s=>`<span class="badge ${s>6?'badge-green':s>4?'badge-yellow':'badge-red'}" style="font-size:13px">${s.toFixed(1)}</span>`).join('')}
-      </div>
-    </div>`;
-  }
-
-  if(d.corrections&&d.corrections.length){
-    diagHtml+=`<div class="card">
-      <div class="card-label">🔧 Recent Corrections</div>
-      <div class="diag-list">${d.corrections.slice(-5).map(c=>'<div class="dl-item"><span class="dl-label">'+esc(c.reason||'')+'</span><span class="dl-val">'+esc(c.original||'').slice(0,80)+' → '+esc(c.corrected||'').slice(0,80)+'</span></div>').join('')}</div>
-    </div>`;
-  }
-
-  $_('diagContent').innerHTML=diagHtml;
-}
-
-async function runDiagnostics(){
-  $_('diagContent').innerHTML='<div class="skeleton" style="height:200px;margin-bottom:8px"></div>';
-  try{
-    const d=await api('/api/diagnose_now',{method:'POST'});
-    renderDiagnostics(d);
-    toast('Diagnostics complete','ok');
-  }catch(e){
-    toast('Diagnostics error','err');
-    loadDiagnostics();
-  }
-}
-
-async function loadReflections(){
-  try{
-    const r=await api('/api/reflection_log?n=10');
-    const items=r.reflections||[];
-    let html='<div class="card"><div class="card-label">🔄 Reflection Log</div><div class="diag-list">';
-    if(!items.length)html+='<span class="dim">No reflections yet.</span>';
-    else items.forEach(item=>{
-      html+='<div class="dl-item"><span class="dl-label">'+(item.ts||'')+'</span><span class="dl-val">'+esc(item.summary||JSON.stringify(item)).slice(0,200)+'</span></div>';
-    });
-    html+='</div></div>';
-    $_('diagContent').innerHTML=html;
-  }catch(e){toast('Error','err');}
-}
-
-async function loadQuality(){
-  try{
-    const r=await api('/api/quality_scores?n=20');
-    const scores=r.scores||[];
-    let html='<div class="card"><div class="card-label">⭐ Quality Scores</div><div class="flex-w">';
-    if(!scores.length)html+='<span class="dim">No scores yet.</span>';
-    else scores.forEach(s=>{
-      html+=`<span class="badge ${s.score>6?'badge-green':s.score>4?'badge-yellow':'badge-red'}" style="font-size:13px;padding:4px 10px">${s.score.toFixed(1)}</span>`;
-    });
-    html+='</div></div>';
-    $_('diagContent').innerHTML=html;
-  }catch(e){toast('Error','err');}
-}
-
-async function loadContradictions(){
-  try{
-    const r=await api('/api/contradictions?n=20');
-    const items=r.contradictions||[];
-    let html='<div class="card"><div class="card-label">⚡ Contradictions</div><div class="diag-list">';
-    if(!items.length)html+='<span class="dim">No contradictions found.</span>';
-    else items.forEach(c=>{
-      html+='<div class="dl-item"><span class="dl-label">'+esc(c.fact1||'').slice(0,80)+'</span><span class="dl-val">vs '+esc(c.fact2||'').slice(0,80)+'</span></div>';
-    });
-    html+='</div></div>';
-    $_('diagContent').innerHTML=html;
-  }catch(e){toast('Error','err');}
-}
-
-async function loadCuriosity(){
-  try{
-    const r=await api('/api/curiosity_queue');
-    const items=r.queue||[];
-    let html='<div class="card"><div class="card-label">🔍 Curiosity Queue</div><div class="diag-list">';
-    if(!items.length)html+='<span class="dim">Queue empty.</span>';
-    else items.forEach(q=>{
-      html+='<div class="dl-item"><span class="dl-label">'+esc(q.query||'').slice(0,60)+'</span><span class="dl-val">priority: '+(q.priority||'—')+'</span></div>';
-    });
-    html+='</div></div>';
-    $_('diagContent').innerHTML=html;
-  }catch(e){toast('Error','err');}
-}
-
-async function loadAutoTune(){
-  try{
-    const r=await api('/api/auto_tune_log');
-    const items=r.log||[];
-    let html='<div class="card"><div class="card-label">📊 Auto-Tune Log</div><div class="diag-list">';
-    if(!items.length)html+='<span class="dim">No tuning events.</span>';
-    else items.forEach(t=>{
-      html+='<div class="dl-item"><span class="dl-label">'+(t.ts||'')+'</span><span class="dl-val">'+esc(t.action||JSON.stringify(t)).slice(0,200)+'</span></div>';
-    });
-    html+='</div></div>';
-    $_('diagContent').innerHTML=html;
-  }catch(e){toast('Error','err');}
-}
-
-// ═════════════════════════════════════════════════════════
-// MODELS
-// ═════════════════════════════════════════════════════════
-async function loadModels(){
-  $_('modelList').innerHTML='<div class="skeleton" style="height:80px;margin-bottom:8px"></div>';
-  try{
-    const r=await api('/api/models');
-    let h='';
-    let recH='';
-    const presets=[];
-    for(const m of r.models){
-      if(m.custom){
-        // show custom models in installed section only
-        const st=m.present?(m.valid?'<span class="badge badge-green">✓</span>':'<span class="badge badge-red">⚠</span>'):'';
-        const act=m.active?'<span class="badge badge-accent">ACTIVE</span>':'';
-        const btns=[];
-        if(m.present&&m.valid&&!m.active)
-          btns.push(`<button class="btn btn-sm btn-primary" onclick="switchModel('${esc(m.file)}','${esc(m.name)}')">⇄ Switch</button>`);
-        if(m.present)
-          btns.push(`<button class="btn btn-sm btn-danger" onclick="deleteModel('${esc(m.file)}')">🗑 Delete</button>`);
-        if(m.present&&!m.valid)
-          btns.push(`<button class="btn btn-sm" onclick="redownloadModel('${esc(m.file)}')">↻ Re-download</button>`);
-        if(!m.present)
-          btns.push(`<button class="btn btn-sm" onclick="deleteModel('${esc(m.file)}')">🗑 Remove entry</button>`);
-        h+=`<div class="mcard">
-          <div class="mcard-top">
-            <span class="mcard-name">${esc(m.name)} ${act} ${st}</span>
-          </div>
-          <div class="mcard-meta"><span>${m.size||''}</span></div>
-          <div class="mcard-actions">${btns.join('')}</div>
-        </div>`;
-        continue;
-      }
-      presets.push(m);
-      const st=m.present?(m.valid?'<span class="badge badge-green">✓</span>':'<span class="badge badge-red">⚠ corrupt</span>'):'<span class="badge badge-dim">not on disk</span>';
-      const act=m.active?'<span class="badge badge-accent">ACTIVE</span>':'';
-      const btns=[];
-      if(m.present&&m.valid&&!m.active)
-        btns.push(`<button class="btn btn-sm btn-primary" onclick="switchModel('${esc(m.file)}','${esc(m.name)}')">⇄ Switch</button>`);
-      if(m.present)
-        btns.push(`<button class="btn btn-sm btn-danger" onclick="deleteModel('${esc(m.file)}')">🗑 Delete</button>`);
-      if(m.present&&!m.valid)
-        btns.push(`<button class="btn btn-sm" onclick="redownloadModel('${esc(m.file)}')">↻ Re-download</button>`);
-      if(!m.present)
-        btns.push(`<button class="btn btn-sm" onclick="startDownload('${esc(m.file)}','${esc(m.url)}','${esc(m.name)}')">⬇ Download</button>`);
-      h+=`<div class="mcard">
-        <div class="mcard-top">
-          <span class="mcard-name">${esc(m.name)} ${act} ${st}</span>
-        </div>
-        <div class="mcard-meta"><span>${m.size||''}</span></div>
-        <div class="mcard-actions">${btns.join('')}</div>
-      </div>`;
-    }
-    // recommended = presets not on disk
-    const recs=presets.filter(m=>!m.present);
-    if(recs.length){
-      recH=recs.map(m=>`<div class="mcard" style="background:var(--surface)">
-        <div class="mcard-top">
-          <span class="mcard-name">${esc(m.name)}</span>
-          <span class="badge badge-dim">${m.size||''}</span>
-        </div>
-        <div class="mcard-actions">
-          <button class="btn btn-sm btn-primary" onclick="startDownload('${esc(m.file)}','${esc(m.url)}','${esc(m.name)}')">⬇ Download</button>
-        </div>
-      </div>`).join('');
-    }else{
-      recH='<div class="dim" style="padding:8px 0;font-size:12px">All recommended models are installed.</div>';
-    }
-    $_('modelList').innerHTML=h||'<div class="empty-state"><div class="es-title">No models on disk</div><div class="es-desc">Download from Recommended below, or use Custom Download.</div></div>';
-    $_('recommendedList').innerHTML=recH;
-  }catch(e){
-    $_('modelList').innerHTML='<div class="empty-state"><div class="es-title">Error loading models</div><div class="es-desc">'+esc(e.message)+'</div></div>';
-  }
-}
-
-let _dlPoll=null;
-async function startDownload(file,url,name){
-  if(_dlPoll){toast('Download in progress','info');return;}
-  const r=await fetch('/api/models/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file,url,name})}).then(r=>r.json());
-  if(r.error){toast(r.error,'err');return;}
-  toast('Downloading: '+name,'info');
-  pollDownload();
-}
-async function redownloadModel(file){
-  if(_dlPoll){toast('Download in progress','info');return;}
-  const r=await fetch('/api/models/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file,url:'',force:true})}).then(r=>r.json());
-  if(r.error){toast(r.error,'err');return;}
-  toast('Re-downloading: '+file,'info');
-  pollDownload();
-}
-async function downloadCustom(){
-  const url=$_('customUrl').value.trim();
-  const file=$_('customFile').value.trim();
-  if(!url||!file){toast('URL and filename required','err');return;}
-  if(!file.endsWith('.gguf')){toast('Filename must end in .gguf','err');return;}
-  await startDownload(file,url,file.replace('.gguf',''));
-}
-function pollDownload(){
-  const dp=$_('dlProgress');dp.style.display='block';
-  const bar=$_('dlBarFill');const txt=$_('dlText');
-  _dlPoll=setInterval(async()=>{
-    try{
-      const s=await api('/api/models/download_progress');
-      let pct=0;
-      if(s.progress&&s.progress.includes('%')){
-        const m=s.progress.match(/(\d+\.?\d*)%/);
-        if(m)pct=parseFloat(m[1]);
-      }
-      bar.style.width=Math.min(pct,99)+'%';
-      if(s.error){txt.textContent='✗ '+s.error;txt.style.color='var(--accent4)';bar.style.background='var(--accent4)';}
-      else if(s.progress==='done'){txt.textContent='✓ Done!';txt.style.color='var(--accent3)';bar.style.width='100%';bar.style.background='var(--accent3)';}
-      else{txt.textContent=s.progress.slice(-80);txt.style.color='var(--yellow)';}
-      if(!s.active){clearInterval(_dlPoll);_dlPoll=null;setTimeout(()=>{dp.style.display='none';loadModels()},2500);}
-    }catch(e){}
-  },1500);
-}
-async function switchModel(file,name){
-  if(!confirm('Switch to '+name+'? LLM server will restart.'))return;
-  try{
-    const r=await api('/api/models/switch',{method:'POST',body:JSON.stringify({file,name})});
-    toast('Switched to '+name,'ok');
-    setTimeout(loadModels,4000);
-  }catch(e){toast(e.message,'err');}
-}
-async function deleteModel(file){
-  if(!confirm('Delete '+file+'?'))return;
-  try{
-    const r=await api('/api/models/delete',{method:'POST',body:JSON.stringify({file})});
-    toast('Deleted: '+file,'ok');
-    loadModels();
-  }catch(e){toast(e.message,'err');}
-}
-
-// ═════════════════════════════════════════════════════════
-// SETTINGS
-// ═════════════════════════════════════════════════════════
-async function loadSettings(){
-  try{
-    const s=await api('/api/settings');
-    $_('s-temp').value=s.temperature;
-    $_('s-mtok').value=s.main_max_tokens;
-    $_('s-rep').value=s.repeat_penalty;
-    $_('s-meval').value=s.mem_eval_interval;
-    $_('s-bufw').value=s.buffer_window;
-    $_('s-lts').value=s.lt_score_min;
-    $_('s-mmtok').value=s.memory_max_tokens;
-    $_('s-city').value=s.default_city;
-    $_('s-idle').value=s.idle_sleep_minutes;
-    $_('s-pro').value=s.proactivity_level;
-    $_('s-sr').value=s.search_results;
-    toggleSet('t-semantic',s.semantic_enabled);
-  }catch(e){toast('Error loading settings','err');}
-}
-
-async function saveSettings(){
-  const data={
-    temperature:parseFloat($_('s-temp').value),
-    main_max_tokens:parseInt($_('s-mtok').value),
-    repeat_penalty:parseFloat($_('s-rep').value),
-    mem_eval_interval:parseInt($_('s-meval').value),
-    buffer_window:parseInt($_('s-bufw').value),
-    lt_score_min:parseInt($_('s-lts').value),
-    memory_max_tokens:parseInt($_('s-mmtok').value),
-    default_city:$_('s-city').value,
-    idle_sleep_minutes:parseInt($_('s-idle').value),
-    proactivity_level:parseInt($_('s-pro').value),
-    search_results:parseInt($_('s-sr').value),
-    semantic_enabled:$_('t-semantic').classList.contains('on')
-  };
-  try{
-    await api('/api/settings',{method:'POST',body:JSON.stringify(data)});
-    toast('Settings saved — bot restarting','ok');
-  }catch(e){toast('Error: '+e.message,'err');}
-}
-
-async function botCtl(action){
-  try{
-    const r=await api('/api/bot_control',{method:'POST',body:JSON.stringify({action})});
-    toast(action+': '+(r.output?.slice(-60)||'done'),'ok');
-    setTimeout(pollStatus,2000);
-    loadBotPage();
-  }catch(e){toast('Error','err');}
-}
-
-// ═════════════════════════════════════════════════════════
-// BOT page
-// ═════════════════════════════════════════════════════════
-async function loadBotPage(){
-  try{
-    const s=await api('/api/status');
-    $_('bot-status-text').textContent=s.bot?'RUNNING':'STOPPED';
-    $_('bot-status-text').style.color=s.bot?'var(--accent3)':'var(--accent4)';
-    $_('bot-mode-text').textContent=s.llm_server?'Online':'Offline';
-    $_('bot-mode-text').style.color=s.llm_server?'var(--accent3)':'var(--text2)';
-  }catch(e){}
-  // load token
-  try{
-    const cfg=await api('/api/settings');
-    if(cfg.telegram_token){
-      $_('bot-token').value=cfg.telegram_token;
-      toggleSet('t-telegram',true);
-    }
-  }catch(e){}
-}
-
-async function saveTelegramToken(){
-  const token=$_('bot-token').value.trim();
-  if(!token){toast('Enter a token','err');return;}
-  try{
-    await api('/api/settings',{method:'POST',body:JSON.stringify({telegram_token:token})});
-    toast('Token saved — restart bot to apply','ok');
-  }catch(e){toast(e.message,'err');}
-}
-
-async function testTelegramToken(){
-  const token=$_('bot-token').value.trim();
-  if(!token){toast('Enter a token first','err');return;}
-  try{
-    const r=await fetch('https://api.telegram.org/bot'+token+'/getMe').then(r=>r.json());
-    if(r.ok){
-      toast('✓ Token valid — bot: @'+(r.result?.username||'?'),'ok');
-    }else{
-      toast('✗ Invalid token: '+r.description,'err');
-    }
-  }catch(e){
-    toast('Connection error: '+e.message,'err');
-  }
-}
-
-let _tokenVis=false;
-function toggleTokenVis(){
-  _tokenVis=!_tokenVis;
-  $_('bot-token').type=_tokenVis?'text':'password';
-}
-
-let _logVisible=false;
-async function toggleLog(){
-  const area=$_('botLog');
-  _logVisible=!_logVisible;
-  area.style.display=_logVisible?'block':'none';
-  $_('logToggleBtn').textContent=_logVisible?'Hide Log':'Show Log';
-  if(!_logVisible)return;
-  try{
-    const r=await api('/api/bot_log');
-    area.innerHTML=(r.lines||[]).map(l=>{
-      let cls='';
-      if(l.includes('ERROR')||l.includes('error'))cls='err';
-      else if(l.includes('WARNING'))cls='warn';
-      else if(l.includes('INFO'))cls='info';
-      return '<span style="color:'+(cls==='err'?'var(--accent4)':cls==='warn'?'var(--yellow)':cls==='info'?'var(--accent)':'inherit')+'">'+esc(l)+'</span>';
-    }).join('\n')||'(empty)';
-    area.scrollTop=area.scrollHeight;
-  }catch(e){area.textContent='Error loading log';}
-}
-
-// ═════════════════════════════════════════════════════════
-// DASHBOARD
-// ═════════════════════════════════════════════════════════
-async function loadDashboard(){
-  try{
-    const d=await api('/api/dashboard');
-    $_('dash-llm').textContent=d.llm?'ON':'OFF';
-    $_('dash-llm').style.color=d.llm?'var(--accent3)':'var(--accent4)';
-    $_('dash-bot').textContent=d.bot?'ON':'OFF';
-    $_('dash-bot').style.color=d.bot?'var(--accent)':'var(--accent4)';
-    $_('dash-model').textContent=d.active_model||'—';
-    $_('dash-lt').textContent=d.memory.long_term||0;
-    $_('dash-st').textContent=d.memory.short_term||0;
-    $_('dash-buf').textContent=d.memory.buffer||0;
-    $_('dash-junk').textContent=d.memory.junk||0;
-  }catch(e){}
-}
-loadDashboard();
-setInterval(loadDashboard,15000);
-
-// ═════════════════════════════════════════════════════════
-// VERSION & UPDATES
-// ═════════════════════════════════════════════════════════
-async function loadVersion(){
-  try{
-    const v=await api('/api/version');
-    $_('v-current').textContent=v.current_version||'—';
-    $_('v-commit').textContent='#'+(v.commit||'—');
-    const be=v.behind;
-    if(typeof be==='number'&&be>0){
-      $_('v-behind').textContent=be+' commit'+(be>1?'s':'')+' behind';
-      $_('v-behind').className='badge badge-yellow';
-      $_('btn-update').style.display='inline-flex';
-    }else if(be===0){
-      $_('v-behind').textContent='up to date';
-      $_('v-behind').className='badge badge-green';
-      $_('btn-update').style.display='none';
-    }else{
-      $_('v-behind').textContent='—';
-      $_('v-behind').className='badge badge-dim';
-    }
-  }catch(e){
-    $_('v-current').textContent='error';
-  }
-}
-
-async function checkUpdate(){
-  const log=$_('updateLog');
-  log.style.display='block';
-  log.textContent='Checking…';
-  try{
-    const v=await api('/api/version');
-    log.textContent=v.history?.join('\n')||'No history';
-    if(v.can_update){
-      log.textContent+='\n\n⬇ Update available ('+v.behind+' commits behind)';
-      $_('btn-update').style.display='inline-flex';
-    }else{
-      log.textContent+='\n\n✓ Up to date';
-    }
-  }catch(e){
-    log.textContent='Error: '+e.message;
-  }
-}
-
-async function doUpdate(){
-  const log=$_('updateLog');
-  log.style.display='block';
-  log.textContent='Pulling…';
-  $_('btn-update').disabled=true;
-  try{
-    const r=await api('/api/update/pull',{method:'POST'});
-    log.textContent=r.output||'Done';
-    setTimeout(loadVersion,2000);
-  }catch(e){
-    log.textContent='Error: '+e.message;
-  }
-  $_('btn-update').disabled=false;
-}
-
-async function doRollback(){
-  if(!confirm('Rollback to previous commit? Changes will be lost.'))return;
-  const log=$_('updateLog');
-  log.style.display='block';
-  log.textContent='Rolling back…';
-  try{
-    const r=await api('/api/update/rollback',{method:'POST',body:JSON.stringify({steps:1})});
-    log.textContent=r.output||'Done';
-    setTimeout(loadVersion,3000);
-  }catch(e){
-    log.textContent='Error: '+e.message;
-  }
-}
-
-async function doReinstall(){
-  if(!confirm('Reinstall NERMANA? Models will be preserved.'))return;
-  const log=$_('updateLog');
-  log.style.display='block';
-  log.textContent='Reinstalling… (check server terminal for progress)';
-  try{
-    const r=await api('/api/reinstall',{method:'POST'});
-    log.textContent=r.output||'Reinstall completed';
-  }catch(e){
-    log.textContent='Error: '+e.message;
-  }
-}
-
-// ═════════════════════════════════════════════════════════
-// FILES — full CRUD file manager
-// ═════════════════════════════════════════════════════════
-let _fmPath='',_fmFile='';
-
-function fmSize(b){
-  if(!b)return'';if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'KB';
-  return(b/1048576).toFixed(1)+'MB';
-}
-function fmTime(ts){
-  if(!ts)return'';const d=new Date(ts*1000);
-  return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-}
-function fmGoHome(){_fmPath='';fmLoad();}
-function fmUp(){
-  if(_fmPath){const p=_fmPath.split('/');p.pop();_fmPath=p.join('/');}
-  fmLoad();
-}
-function fmBreadClick(e){
-  const idx=e.target.dataset.idx;
-  if(idx!==undefined){
-    const parts=_fmPath.split('/').filter(Boolean);
-    _fmPath=parts.slice(0,parseInt(idx)+1).join('/');
-    fmLoad();
-  }
-}
-
-async function fmLoad(){
-  $_('fmEditor').classList.remove('open');
-  $_('fmUpload').classList.remove('open');
-  $_('fmToolbar').style.display='none';
-  const parts=_fmPath.split('/').filter(Boolean);
-  let bc='<span data-idx="-1" onclick="fmGoHome()" style="color:var(--accent)">~</span>';
-  parts.forEach((p,i)=>{bc+='<span style="color:var(--dim);margin:0 2px">/</span><span data-idx="'+i+'" style="color:'+(i===parts.length-1?'var(--text)':'var(--text2)')+'">'+esc(p)+'</span>';});
-  $_('fmPath').innerHTML='<span style="font-size:11px;color:var(--dim);margin-right:4px">nermana/</span>'+bc;
-  $_('fmPath').onclick=fmBreadClick;
-
-  try{
-    const r=await api('/api/files?path='+encodeURIComponent(_fmPath));
-    if(!r.is_dir){
-      $_('fmEditArea').value=r.content||'';
-      _fmFile=r.path;
-      $_('fmEditPath').textContent=r.path;
-      $_('fmEditor').classList.add('open');
-      $_('fmList').innerHTML='';
-      return;
-    }
-    let h='';
-    const dirs=r.entries.filter(e=>e.is_dir).sort((a,b)=>a.name.localeCompare(b.name));
-    const files=r.entries.filter(e=>!e.is_dir).sort((a,b)=>a.name.localeCompare(b.name));
-    for(const e of[...dirs,...files]){
-      const isPy=e.name.endsWith('.py');
-      const isMd=e.name.endsWith('.md');
-      const isCfg=e.name==='.config';
-      const icon=e.is_dir?'📁':isPy?'🐍':isMd?'📝':isCfg?'⚙':'📄';
-      h+=`<div class="fm-entry" onclick="fmOpen('${esc(e.name)}',${e.is_dir})" oncontextmenu="event.preventDefault();fmCtx('${esc(e.name)}',${e.is_dir})">
-        <div class="fe-icon">${icon}</div>
-        <div class="fe-name">${esc(e.name)}</div>
-        <div style="font-size:10px;color:var(--dim);font-family:var(--mono);text-align:right">
-          ${e.size!=null?'<div>'+fmSize(e.size)+'</div>':''}
-          ${e.modified?'<div style="font-size:9px;color:var(--border2)">'+fmTime(e.modified)+'</div>':''}
-        </div>
-      </div>`;
-    }
-    $_('fmList').innerHTML=h||'<div class="empty-state"><div class="es-title">Empty directory</div><div class="es-desc" style="font-size:12px">Create a new file or directory</div></div>';
-  }catch(e){$_('fmList').innerHTML='<div class="empty-state"><div class="es-title">Error</div><div class="es-desc">'+esc(e.message)+'</div></div>';}
-}
-
-function fmOpen(name,isDir){
-  if(isDir){
-    _fmPath=_fmPath?_fmPath+'/'+name:name;
-    fmLoad();
-  }else{
-    const p=_fmPath?_fmPath+'/'+name:name;
-    _fmFile=p;
-    fmLoad();
-  }
-}
-
-async function fmSave(){
-  const content=$_('fmEditArea').value;
-  try{
-    const r=await api('/api/files/save',{method:'POST',body:JSON.stringify({path:_fmFile,content})});
-    toast('Saved: '+_fmFile,'ok');
-  }catch(e){toast(e.message,'err');}
-}
-
-function fmCancel(){
-  $_('fmEditor').classList.remove('open');
-  _fmFile='';
-  fmLoad();
-}
-
-async function fmDelete(){
-  const path=_fmFile||_fmPath;
-  if(!path){toast('No file selected','err');return;}
-  const name=path.split('/').pop()||'this';
-  if(!confirm('Delete '+name+'?'))return;
-  try{
-    const r=await api('/api/files/delete',{method:'POST',body:JSON.stringify({path})});
-    toast('Deleted: '+name,'ok');
-    if(_fmFile)_fmFile='';
-    $_('fmEditor').classList.remove('open');
-    fmUp();
-  }catch(e){toast(e.message,'err');}
-}
-
-async function fmRename(){
-  const path=_fmFile||_fmPath;
-  if(!path){toast('Nothing selected','err');return;}
-  const old=path.split('/').pop()||'';
-  const neu=prompt('Rename to:',old);
-  if(!neu||neu===old)return;
-  try{
-    const r=await api('/api/files/rename',{method:'POST',body:JSON.stringify({path,name:neu})});
-    toast('Renamed to '+neu,'ok');
-    if(_fmFile)_fmFile=r.path;
-    fmLoad();
-  }catch(e){toast(e.message,'err');}
-}
-
-function fmNewFile(){
-  const name=prompt('New file name:','untitled.txt');
-  if(!name)return;
-  const path=_fmPath?(_fmPath+'/'+name):name;
-  api('/api/files/create',{method:'POST',body:JSON.stringify({path,kind:'file',content:''})})
-    .then(r=>{toast('Created: '+name,'ok');fmOpen(name,false);})
-    .catch(e=>toast(e.message,'err'));
-}
-
-function fmNewDir(){
-  const name=prompt('New directory name:','new_folder');
-  if(!name)return;
-  const path=_fmPath?(_fmPath+'/'+name):name;
-  api('/api/files/create',{method:'POST',body:JSON.stringify({path,kind:'dir'})})
-    .then(r=>{toast('Created: '+name,'ok');fmLoad();})
-    .catch(e=>toast(e.message,'err'));
-}
-
-function fmRefresh(){fmLoad();}
-
-function fmUploadToggle(){
-  const u=$_('fmUpload');
-  u.classList.toggle('open');
-}
-
-async function fmUploadFile(input){
-  const file=input.files[0];
-  if(!file)return;
-  const dest=_fmPath?(_fmPath+'/'+file.name):file.name;
-  const fd=new FormData();
-  fd.append('file',file);
-  fd.append('path',dest);
-  try{
-    const r=await fetch('/api/files/upload',{method:'POST',body:fd}).then(r=>r.json());
-    if(r.error){toast(r.error,'err');return;}
-    toast('Uploaded: '+file.name+' ('+fmSize(r.size)+')','ok');
-    $_('fmUpload').classList.remove('open');
-    fmLoad();
-  }catch(e){toast(e.message,'err');}
-  input.value='';
-}
-
-// ═════════════════════════════════════════════════════════
-// INIT
-// ═════════════════════════════════════════════════════════
-document.addEventListener('keydown',e=>{
-  if(e.ctrlKey&&e.key==='Enter')sendChat();
-  if(e.ctrlKey&&e.key==='s'&&$_('fmEditor').classList.contains('open')){e.preventDefault();fmSave();}
-});
-</script>
+<script src="js/app.js"></script>
 </body>
 </html>

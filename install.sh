@@ -3,8 +3,14 @@
 # NERMANA Installer v4.7.2
 # Installs NERMANA on Termux with AI models, Telegram bot / offline
 # Repository: https://github.com/joelagdam/nermana_ai
+#
+# Usage:
+#   bash install.sh                          # interactive
+#   bash install.sh --quick                  # skip model prompts, use defaults
 # ================================================================
-set -e
+
+_QUICK_MODE=false
+for _arg in "$@"; do [ "$_arg" = "--quick" ] && _QUICK_MODE=true; done
 
 GREEN="\e[32m"; RED="\e[31m"; CYAN="\e[36m"; YELLOW="\e[33m"; BOLD="\e[1m"; DIM="\e[2m"; RESET="\e[0m"
 ok()      { echo -e "${GREEN}[✓]${RESET} $1"; }
@@ -13,6 +19,7 @@ fail()    { echo -e "${RED}[✗]${RESET} $1"; exit 1; }
 info()    { echo -e "${CYAN}[i]${RESET} $1"; }
 section() { echo -e "\n${BOLD}${CYAN}━━━ $1 ━━━${RESET}"; }
 prompt_yn() { local d=$2; read -p "$1 [Y/n]: " r; [[ "$r" =~ ^[nN] ]] && return 1; return 0; }
+prompt_choose() { read -p "$1 " r; echo "$r"; }
 
 REPO_URL="https://github.com/joelagdam/nermana_ai.git"
 NERMANA_DIR="$HOME/nermana"
@@ -181,19 +188,17 @@ elif [ -d "$NERMANA_DIR/bot" ] && [ -f "$NERMANA_DIR/nermana_ctl.sh" ]; then
 else
     # standalone install.sh — clone from GitHub
     info "Cloning from $REPO_URL"
+    info "(This may take a moment depending on your connection.)"
     # save models/ aside before clone overwrites
     if [ -d "$NERMANA_DIR/models" ]; then
         mv "$NERMANA_DIR/models" "/tmp/nermana_models_backup"
     fi
     rm -rf "$NERMANA_DIR"
-    git clone --depth=1 "$REPO_URL" "$NERMANA_DIR" 2>&1 | tail -3
-    if [ -d "$NERMANA_DIR" ]; then
-        ok "Repository cloned"
-    else
+    GIT_OUT=$(git clone --depth=1 "$REPO_URL" "$NERMANA_DIR" 2>&1) && ok "Repository cloned" || {
         # restore models/ before failing
-        [ -d "/tmp/nermana_models_backup" ] && mv "/tmp/nermana_models_backup" "$NERMANA_DIR/models" 2>/dev/null
-        fail "Clone failed. Check network or URL: $REPO_URL"
-    fi
+        [ -d "/tmp/nermana_models_backup" ] && mv "/tmp/nermana_models_backup" "$NERMANA_DIR" 2>/dev/null
+        fail "Clone failed:\n$GIT_OUT"
+    }
     # restore preserved models/
     if [ -d "/tmp/nermana_models_backup" ]; then
         rm -rf "$NERMANA_DIR/models"
@@ -224,14 +229,16 @@ else
     cd "$LLAMA_DIR"
     info "Configuring cmake..."
     CMAKE_FLAGS="-B build -DLLAMA_BUILD_SERVER=ON -DLLAMA_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release"
-    # enable llamafile (faster ARM CPU inference) if available
-    cmake $CMAKE_FLAGS 2>&1 | tail -3
-    info "Building (this may take 10-30 minutes)..."
-    cmake --build build --config Release --target llama-server -j2 2>&1 | tail -5
+    cmake $CMAKE_FLAGS 2>&1 || fail "cmake configuration failed"
+    info "Building llama-server (this takes 10-30 minutes on device)..."
+    info "  ↳ Be patient — this only happens once."
+    cmake --build build --config Release --target llama-server -j2 2>&1 || {
+        warn "Build had warnings; checking binary..."
+    }
     if [ -f "$LLAMA_SERVER" ]; then
         ok "llama-server built successfully"
     else
-        fail "llama-server build failed. Check build log: $LLAMA_DIR/build/CMakeFiles/CMakeOutput.log"
+        fail "llama-server build failed. See $LLAMA_DIR/build/CMakeFiles/CMakeOutput.log"
     fi
 fi
 
@@ -410,17 +417,47 @@ echo -e "  ${DIM}Repository: $REPO_URL${RESET}"
 echo ""
 echo -e "  ${BOLD}Quick start:${RESET}"
 echo ""
+echo -e "  ${YELLOW}IMPORTANT:${RESET} Run this first to activate the 'nermana' command:"
+echo -e "    ${BOLD}source ~/.bashrc${RESET}"
+echo ""
+echo -e "  Then:"
 if [ -n "$TELEGRAM_TOKEN" ]; then
-    echo "    nermana start     Launch LLM servers + Telegram bot"
+    echo -e "    ${CYAN}nermana start${RESET}     Launch LLM servers + Telegram bot"
 fi
-echo "    nermana web       Start web dashboard at http://127.0.0.1:5000"
-echo "    nermana status    Check all services"
-echo "    nermana stop      Stop everything"
-echo "    nermana reset     Clear all memories"
-echo "    nermana modules   Show patchable module list"
+echo -e "    ${CYAN}nermana web${RESET}       Start web dashboard at http://127.0.0.1:5000"
+echo -e "    ${CYAN}nermana status${RESET}    Check all services"
+echo -e "    ${CYAN}nermana stop${RESET}      Stop everything"
+echo -e "    ${CYAN}nermana reset${RESET}     Clear all memories"
+echo ""
+echo -e "  Or use the full path directly:"
+echo -e "    ${DIM}bash ~/nermana/nermana_ctl.sh start${RESET}"
 echo ""
 echo -e "  ${DIM}Edit $CONFIG_FILE to tune settings.${RESET}"
-echo -e "  ${DIM}Restart Termux or run: source ~/.bashrc${RESET}"
 echo ""
-echo -e "  ${YELLOW}Note: First run 'nermana start' will download models if missing.${RESET}"
+
+# prompt to start now
+if [ "$_QUICK_MODE" = false ]; then
+    echo ""
+    if prompt_yn "Start NERMANA now?"; then
+        echo ""
+        # Source the alias and start
+        if [ -f "$HOME/.bashrc" ]; then
+            source "$HOME/.bashrc" 2>/dev/null || true
+        fi
+        if command -v nermana &>/dev/null; then
+            nermana start || warn "Start had issues — check 'nermana status'"
+        else
+            bash "$NERMANA_DIR/nermana_ctl.sh" start || warn "Start had issues"
+        fi
+        echo ""
+        if [ -n "$TELEGRAM_TOKEN" ]; then
+            ok "NERMANA bot + servers launching. Check: bash ~/nermana/nermana_ctl.sh status"
+        else
+            ok "LLM servers launching. Open http://127.0.0.1:5000 in a browser."
+        fi
+    else
+        echo ""
+        info "Run later with: source ~/.bashrc && nermana start"
+    fi
+fi
 echo ""

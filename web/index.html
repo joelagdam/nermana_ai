@@ -1099,6 +1099,23 @@ a:hover { text-decoration: underline; }
   flex-shrink: 0;
   text-align: right;
 }
+.fm-entry .fe-actions {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.fm-entry .fe-actions button {
+  font-size: 11px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text2);
+  border: 1px solid transparent;
+  cursor: pointer;
+  line-height: 1;
+}
+.fm-entry .fe-actions button:hover { border-color: var(--border2); }
+.fm-entry .fe-actions button:active { background: var(--surface2); }
 
 .fm-editor { display: none; margin-top: 8px; }
 .fm-editor.open { display: block; }
@@ -1520,7 +1537,7 @@ a:hover { text-decoration: underline; }
 
 /* ═══ UTILITIES ═══ */
 const $ = (id) => document.getElementById(id);
-const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
 async function api(url, opts = {}) {
   const r = await fetch(url, {
@@ -2386,9 +2403,16 @@ async function fmLoad() {
       const isMd = e.name.endsWith('.md');
       const isCfg = e.name === '.config';
       const icon = e.is_dir ? '📁' : isPy ? '🐍' : isMd ? '📝' : isCfg ? '⚙' : '📄';
-      h += '<div class="fm-entry" onclick="fmOpen(\'' + esc(e.name) + '\',' + e.is_dir + ')">'
-        + '<div class="fe-icon">' + icon + '</div>'
-        + '<div class="fe-name">' + esc(e.name) + '</div>'
+      const en = esc(e.name);
+      h += '<div class="fm-entry">'
+        + '<div class="fe-icon" onclick="fmOpen(\'' + en + '\',' + e.is_dir + ')">' + icon + '</div>'
+        + '<div class="fe-name" onclick="fmOpen(\'' + en + '\',' + e.is_dir + ')">' + en + '</div>'
+        + '<div class="fe-actions">'
+        + (e.is_dir ? ''
+          : '<button onclick="event.stopPropagation();fmOpen(\'' + en + '\',false)">✏️</button>')
+        + '<button onclick="event.stopPropagation();fmRenameFile(\'' + en + '\')">🔀</button>'
+        + '<button onclick="event.stopPropagation();fmDeleteFile(\'' + en + '\')">🗑️</button>'
+        + '</div>'
         + '<div class="fe-size">'
         + (e.size != null ? fmSize(e.size) : '')
         + (e.modified ? '<div style="font-size:9px;color:var(--border2)">' + fmTime(e.modified) + '</div>' : '')
@@ -2457,6 +2481,28 @@ async function fmRename() {
     if (_fmFile) _fmFile = r.path;
     fmLoad();
   } catch (e) { toast(e.message, 'err'); }
+}
+
+async function fmRenameFile(name) {
+  const path = _fmPath ? _fmPath + '/' + name : name;
+  const neu = prompt('Rename "' + name + '" to:', name);
+  if (!neu || neu === name) return;
+  try {
+    await api('/api/files/rename', { method: 'POST', body: JSON.stringify({ path, name: neu }) });
+    toast('Renamed to ' + neu);
+    fmLoad();
+  } catch (e) { toast(e.message, 'err'); }
+}
+
+async function fmDeleteFile(name) {
+  const path = _fmPath ? _fmPath + '/' + name : name;
+  showModal('Delete', 'Delete <b>' + esc(name) + '</b>?<br>This cannot be undone.', 'Delete', async () => {
+    try {
+      await api('/api/files/delete', { method: 'POST', body: JSON.stringify({ path }) });
+      toast('Deleted: ' + name);
+      fmLoad();
+    } catch (e) { toast(e.message, 'err'); }
+  });
 }
 
 function fmNewFile() {

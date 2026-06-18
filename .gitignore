@@ -1,0 +1,8 @@
+*.log
+*.pid
+__pycache__/
+*.pyc
+install.log
+.env
+memory/embeddings/vectors.db
+state/*

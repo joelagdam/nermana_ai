@@ -716,6 +716,7 @@ def api_dashboard():
     events = _get_pipeline_events(20)
     return jsonify({
         "llm": llm_ok, "bot": bot_ok,
+        "active_model": cfg.get("ACTIVE_MODEL", "unknown"),
         "memory": mem,
         "total_files": total_files, "total_dirs": total_dirs,
         "recent_events": events,
@@ -767,6 +768,7 @@ def api_settings():
             "idle_sleep_minutes": int(cfg.get("IDLE_SLEEP_MINUTES", "15")),
             "active_model":      cfg.get("ACTIVE_MODEL", "unknown"),
             "semantic_enabled":  cfg.get("SEMANTIC_MEMORY_ENABLED", "true") == "true",
+            "telegram_token":   cfg.get("TELEGRAM_TOKEN", ""),
         })
     else:
         data = request.json
@@ -778,6 +780,7 @@ def api_settings():
             "proactivity_level": "PROACTIVITY_LEVEL", "exec_whitelist": "EXEC_WHITELIST",
             "search_results": "SEARCH_RESULTS", "idle_sleep_minutes": "IDLE_SLEEP_MINUTES",
             "semantic_enabled": "SEMANTIC_MEMORY_ENABLED",
+            "telegram_token": "TELEGRAM_TOKEN",
         }
         for k, v in mapping.items():
             if k in data:
@@ -881,6 +884,22 @@ def api_model_switch():
     _time.sleep(1)
     _run("nermana start-server")
     return jsonify({"status": "ok"})
+
+@app.route('/api/models/delete', methods=['POST'])
+def api_model_delete():
+    data = request.json
+    file = data.get('file')
+    if not file:
+        return jsonify({"error": "no file"}), 400
+    path = BASE / "models" / file
+    cfg  = _read_cfg()
+    active = cfg.get("LLAMA_MODEL_PATH", "")
+    if not path.exists():
+        return jsonify({"error": "not found"}), 404
+    if str(path) == active:
+        return jsonify({"error": "cannot delete active model"}), 400
+    path.unlink()
+    return jsonify({"status": "deleted", "file": file})
 
 @app.route('/api/bot_control', methods=['POST'])
 def api_bot_control():
@@ -999,6 +1018,55 @@ def api_auto_tune_log():
         return jsonify({"log": get_tune_log(50)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# ── Version & Updates ────────────────────────────
+
+@app.route('/api/version')
+def api_version():
+    git_dir = str(BASE)
+    vfile = BASE / "VERSION"
+    current = vfile.read_text(encoding='utf-8', errors='replace').strip() if vfile.exists() else "unknown"
+    # git info
+    behind = "?"
+    try:
+        r = subprocess.run(["git", "-C", git_dir, "rev-list", "--count", "HEAD..origin/main"],
+                           capture_output=True, text=True, timeout=8)
+        if r.returncode == 0:
+            behind = int(r.stdout.strip())
+    except: pass
+    try:
+        r = subprocess.run(["git", "-C", git_dir, "rev-parse", "--short", "HEAD"],
+                           capture_output=True, text=True, timeout=5)
+        commit = r.stdout.strip() if r.returncode == 0 else "?"
+    except: commit = "?"
+    try:
+        r = subprocess.run(["git", "-C", git_dir, "log", "--oneline", "-3"],
+                           capture_output=True, text=True, timeout=5)
+        history = r.stdout.strip().splitlines() if r.returncode == 0 else []
+    except: history = []
+    return jsonify({
+        "current_version": current,
+        "commit": commit,
+        "behind": behind,
+        "can_update": isinstance(behind, int) and behind > 0,
+        "history": history,
+    })
+
+@app.route('/api/update/pull', methods=['POST'])
+def api_update_pull():
+    out = _run(f"cd {BASE} && git fetch --tags && git pull --ff-only")
+    return jsonify({"status": "done", "output": out})
+
+@app.route('/api/update/rollback', methods=['POST'])
+def api_update_rollback():
+    steps = request.json.get("steps", 1) if request.json else 1
+    out = _run(f"cd {BASE} && git checkout HEAD~{steps}")
+    return jsonify({"status": "done" if "error" not in out else "error", "output": out})
+
+@app.route('/api/reinstall', methods=['POST'])
+def api_reinstall():
+    out = _run(f"cd {BASE} && bash install.sh --quick")
+    return jsonify({"status": "done", "output": out})
 
 @app.route('/')
 def index():

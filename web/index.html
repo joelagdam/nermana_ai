@@ -68,7 +68,6 @@ a{color:var(--accent);text-decoration:none}
 }
 .tab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0;transition:stroke .15s}
 .tab.active{color:var(--accent)}.tab.active::after{content:'';position:absolute;top:0;left:20%;right:20%;height:2px;background:var(--accent);border-radius:0 0 3px 3px}
-.tab-badge{position:absolute;top:2px;right:50%;transform:translateX(18px);background:var(--accent4);color:#fff;font-size:8px;padding:1px 5px;border-radius:99px;font-weight:700;min-width:14px;text-align:center}
 
 /* ── Card ───────────────────────────── */
 .card{
@@ -78,6 +77,22 @@ a{color:var(--accent);text-decoration:none}
 }
 .card:hover{border-color:var(--border2)}
 .card-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--text2);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+
+/* ── Collapse ───────────────────────── */
+.collapse-header{
+  display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;
+  padding:10px 14px;background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:4px;
+  transition:border-color .15s;
+}
+.collapse-header:hover{border-color:var(--border2)}
+.collapse-header .ch-icon{font-size:12px;color:var(--dim);transition:transform .2s;flex-shrink:0}
+.collapse-header.open .ch-icon{transform:rotate(90deg)}
+.collapse-header .ch-title{flex:1;font-size:12px;font-weight:600;letter-spacing:.03em}
+.collapse-header .ch-badge{font-size:9px;padding:2px 7px;border-radius:99px;background:var(--surface3);color:var(--text2)}
+.collapse-body{overflow:hidden;max-height:0;transition:max-height .3s ease;margin-bottom:8px}
+.collapse-body.open{max-height:2000px}
+.collapse-body-inner{padding:4px 0}
 
 /* ── Buttons ────────────────────────── */
 .btn{
@@ -122,7 +137,8 @@ a{color:var(--accent);text-decoration:none}
 /* ── Grid ───────────────────────────── */
 .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-@media(max-width:480px){.grid-2{grid-template-columns:1fr}.grid-3{grid-template-columns:1fr 1fr}}
+.grid-4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px}
+@media(max-width:480px){.grid-2,.grid-3,.grid-4{grid-template-columns:1fr 1fr}}
 
 /* ── Stat box ───────────────────────── */
 .stat-box{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 10px;text-align:center}
@@ -152,7 +168,6 @@ a{color:var(--accent);text-decoration:none}
 .msg.bot.streaming{border-left-color:var(--accent2)}
 .msg.bot.offline{border-left-color:var(--yellow)}
 .msg.tool{font-family:var(--mono);font-size:11px;color:var(--text2);align-self:flex-start;background:transparent;padding:2px 0;max-width:100%;animation:none}
-.msg.tool .tool-icon{display:inline-block;width:16px;text-align:center;margin-right:4px}
 .msg .ts{font-size:9px;color:var(--dim);margin-top:4px;display:block;text-align:right}
 .chat-inp{display:flex;align-items:center;gap:8px;padding:8px 12px;padding-bottom:calc(8px + var(--safe-b));background:var(--surface);border-top:1px solid var(--border);flex-shrink:0}
 .chat-inp input{flex:1;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:22px;font-size:14px;min-width:0;transition:border-color .15s}
@@ -170,12 +185,12 @@ a{color:var(--accent);text-decoration:none}
 @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
 
 /* ══════════════════════════════════════
-   PIPELINE
+   PIPELINE (embedded in Dashboard)
 ══════════════════════════════════════ */
 .pipe-filter{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
 .pipe-filter .pf-btn{font-size:10px;padding:4px 10px;border-radius:99px;background:var(--surface2);color:var(--text2);border:1px solid var(--border);transition:all .12s}
 .pipe-filter .pf-btn.active{background:var(--accent);color:#000;border-color:var(--accent)}
-.pipe-log{font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:70vh;overflow-y:auto}
+.pipe-log{font-family:var(--mono);font-size:11px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:250px;overflow-y:auto}
 .pipe-evt{display:flex;gap:6px;padding:4px 0;border-bottom:1px solid rgba(30,35,54,.5);align-items:flex-start;line-height:1.4}
 .pipe-evt:last-child{border-bottom:none}
 .pipe-ts{color:var(--dim);min-width:50px;font-size:10px;flex-shrink:0;padding-top:1px}
@@ -192,20 +207,7 @@ a{color:var(--accent);text-decoration:none}
 .pipe-empty{color:var(--dim);font-size:12px;padding:20px;text-align:center}
 
 /* ══════════════════════════════════════
-   MEMORY
-══════════════════════════════════════ */
-.mem-mood{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px;display:flex;align-items:center;gap:12px}
-.mem-mood-icon{font-size:24px}
-.mem-mood-text{font-size:13px;color:var(--text);flex:1}
-.mem-reminders{font-size:12px;line-height:1.8;color:var(--text)}
-.mem-reminder{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
-.mem-reminder:last-child{border-bottom:none}
-.mem-reminder .r-time{font-family:var(--mono);color:var(--accent);font-size:11px;min-width:48px}
-.mem-reminder .r-text{flex:1;color:var(--text2);font-size:12px}
-.mem-reminder .r-badge{font-size:9px;color:var(--dim)}
-
-/* ══════════════════════════════════════
-   DIAGNOSTICS
+   DIAGNOSTICS (embedded in Dashboard)
 ══════════════════════════════════════ */
 .diag-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @media(max-width:480px){.diag-grid{grid-template-columns:1fr}}
@@ -235,15 +237,6 @@ a{color:var(--accent);text-decoration:none}
 .custom-dl{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-top:8px}
 
 /* ══════════════════════════════════════
-   SETTINGS
-══════════════════════════════════════ */
-.settings-group{margin-bottom:12px}
-.log-viewer{font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-all;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;max-height:60vh;overflow-y:auto;line-height:1.6;color:var(--text2)}
-.log-viewer .warn{color:var(--yellow)}
-.log-viewer .err{color:var(--accent4)}
-.log-viewer .info{color:var(--accent)}
-
-/* ══════════════════════════════════════
    FILES (FM)
 ══════════════════════════════════════ */
 .fm-bread{font-family:var(--mono);font-size:11px;color:var(--text2);padding:4px 0 8px;word-break:break-all}
@@ -264,7 +257,6 @@ a{color:var(--accent);text-decoration:none}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 #toast.ok{border-color:var(--accent3);color:var(--accent3)}
 #toast.err{border-color:var(--accent4);color:var(--accent4)}
-#toast.info{border-color:var(--accent);color:var(--accent)}
 
 /* ── Empty state ────────────────────── */
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px;color:var(--dim);text-align:center;gap:6px}
@@ -285,6 +277,10 @@ a{color:var(--accent);text-decoration:none}
 .text2{color:var(--text2)}
 .mt-4{margin-top:4px}.mt-8{margin-top:8px}.mb-8{margin-bottom:8px}.gap-4{gap:4px}
 .trunc{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── Token input with reveal ────────── */
+.token-row{display:flex;align-items:center;gap:6px}
+.token-row input{flex:1}
 </style>
 </head>
 <body>
@@ -302,46 +298,170 @@ a{color:var(--accent);text-decoration:none}
   <!-- ── Pages ────────────────── -->
   <div class="pages">
 
-    <!-- DASHBOARD -->
+    <!-- ═══════════ DASHBOARD ═══════════ -->
     <div class="page active" id="page-dashboard">
-      <div class="grid-2">
-        <div class="card" style="text-align:center;padding:20px 14px">
-          <div style="font-size:36px;font-weight:800;font-family:var(--mono);color:var(--accent3)" id="dash-llm">—</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:4px">LLM Server</div>
+
+      <!-- Status row -->
+      <div class="grid-3">
+        <div class="card" style="text-align:center;padding:16px 10px">
+          <div style="font-size:28px;font-weight:800;font-family:var(--mono);color:var(--accent3)" id="dash-llm">—</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">LLM Server</div>
         </div>
-        <div class="card" style="text-align:center;padding:20px 14px">
-          <div style="font-size:36px;font-weight:800;font-family:var(--mono);color:var(--accent)" id="dash-bot">—</div>
-          <div style="font-size:11px;color:var(--text2);margin-top:4px">Bot Status</div>
+        <div class="card" style="text-align:center;padding:16px 10px">
+          <div style="font-size:28px;font-weight:800;font-family:var(--mono);color:var(--accent)" id="dash-bot">—</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">Bot</div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px 10px">
+          <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--accent2);word-break:break-all" id="dash-model">—</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">Active Model</div>
         </div>
       </div>
-      <div class="grid-2">
+
+      <!-- Version & System -->
+      <div class="card" id="versionCard">
+        <div class="card-label">📦 Version &amp; System
+          <button class="btn btn-ghost btn-sm" onclick="loadVersion()" style="margin-left:auto">↻</button>
+        </div>
+        <div class="flex-w" style="font-size:12px;color:var(--text2);gap:12px">
+          <span id="v-current">Loading…</span>
+          <span id="v-commit" class="mono" style="color:var(--dim)"></span>
+          <span id="v-behind" class="badge"></span>
+        </div>
+        <div class="flex-w" style="margin-top:8px">
+          <button class="btn btn-sm" onclick="checkUpdate()">📡 Check Updates</button>
+          <button class="btn btn-sm btn-primary" id="btn-update" style="display:none" onclick="doUpdate()">⬇ Pull Update</button>
+          <button class="btn btn-sm" id="btn-rollback" onclick="doRollback()">↩ Rollback</button>
+          <button class="btn btn-sm btn-danger" onclick="doReinstall()">🔄 Reinstall</button>
+        </div>
+        <div id="updateLog" style="display:none;margin-top:8px;font-family:var(--mono);font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;max-height:120px;overflow-y:auto;color:var(--text2);white-space:pre-wrap"></div>
+      </div>
+
+      <!-- Memory stats -->
+      <div class="grid-4" style="margin-bottom:8px">
         <div class="stat-box"><div id="dash-lt" class="stat-num lt">—</div><div class="stat-lbl">Long-term</div></div>
         <div class="stat-box"><div id="dash-st" class="stat-num st">—</div><div class="stat-lbl">Short-term</div></div>
         <div class="stat-box"><div id="dash-buf" class="stat-num buf">—</div><div class="stat-lbl">Buffer</div></div>
         <div class="stat-box"><div id="dash-junk" class="stat-num jk">—</div><div class="stat-lbl">Junk</div></div>
       </div>
-      <div class="card" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+
+      <!-- Quick controls -->
+      <div class="card" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">
         <button class="btn btn-sm btn-primary" onclick="botCtl('start')">▶ Start Bot</button>
         <button class="btn btn-sm btn-danger" onclick="botCtl('stop')">⏹ Stop Bot</button>
         <button class="btn btn-sm" onclick="botCtl('restart')">↻ Restart</button>
         <button class="btn btn-sm" onclick="botCtl('start-server')">🖥 Start LLM</button>
         <button class="btn btn-sm btn-danger" onclick="botCtl('stop-server')">⏹ Stop LLM</button>
       </div>
-      <div class="card">
-        <div class="card-label">📂 Files Overview</div>
-        <div class="flex-w" style="font-size:13px;color:var(--text2)">
-          <span id="dash-files">—</span> files across <span id="dash-dirs">—</span> directories
+
+      <!-- ▸ System Health -->
+      <div class="collapse-header" onclick="toggleCollapse('health')" id="ch-health">
+        <span class="ch-icon">▶</span>
+        <span class="ch-title">System Health</span>
+        <span class="ch-badge" id="ch-badge-health">load</span>
+      </div>
+      <div class="collapse-body" id="cb-health">
+        <div class="collapse-body-inner">
+          <div class="flex-w mb-8">
+            <button class="btn btn-sm btn-primary" onclick="runDiagnostics()">🏥 Run Now</button>
+            <button class="btn btn-sm" onclick="loadReflections()">🔄 Reflections</button>
+            <button class="btn btn-sm" onclick="loadQuality()">⭐ Quality</button>
+            <button class="btn btn-sm" onclick="loadContradictions()">⚡ Contradictions</button>
+            <button class="btn btn-sm" onclick="loadCuriosity()">🔍 Curiosity</button>
+            <button class="btn btn-sm" onclick="loadAutoTune()">📊 Auto-Tune</button>
+          </div>
+          <div id="diagContent">
+            <div class="card">
+              <div class="card-label">🏥 System Health</div>
+              <div id="diagHealth"><span class="dim">Click "Run Now" for health data.</span></div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="card">
-        <div class="card-label">⚡ Recent Activity</div>
-        <div class="pipe-log" id="dash-events" style="max-height:200px">
-          <div class="pipe-empty">Loading…</div>
+
+      <!-- ▸ Live Activity -->
+      <div class="collapse-header" onclick="toggleCollapse('activity')" id="ch-activity">
+        <span class="ch-icon">▶</span>
+        <span class="ch-title">Live Activity</span>
+        <span class="ch-badge" id="ch-badge-activity">LIVE</span>
+      </div>
+      <div class="collapse-body" id="cb-activity">
+        <div class="collapse-body-inner">
+          <div class="pipe-filter" id="pipeFilter">
+            <button class="pf-btn active" data-filter="all" onclick="setPipeFilter('all',this)">All</button>
+            <button class="pf-btn" data-filter="MAIN_LLM" onclick="setPipeFilter('MAIN_LLM',this)">LLM</button>
+            <button class="pf-btn" data-filter="USER" onclick="setPipeFilter('USER',this)">User</button>
+            <button class="pf-btn" data-filter="TOOL" onclick="setPipeFilter('TOOL',this)">Tools</button>
+            <button class="pf-btn" data-filter="MEMORY_EVAL" onclick="setPipeFilter('MEMORY_EVAL',this)">Memory</button>
+            <button class="pf-btn" data-filter="ERROR" onclick="setPipeFilter('ERROR',this)">Errors</button>
+          </div>
+          <div class="pipe-log" id="pipeLog"><div class="pipe-empty">Waiting for events…</div></div>
         </div>
       </div>
+
+      <!-- ▸ Memory & Mood -->
+      <div class="collapse-header" onclick="toggleCollapse('memory')" id="ch-memory">
+        <span class="ch-icon">▶</span>
+        <span class="ch-title">Memory &amp; Mood</span>
+        <span class="ch-badge" id="ch-badge-memory">—</span>
+      </div>
+      <div class="collapse-body" id="cb-memory">
+        <div class="collapse-body-inner">
+          <div class="grid-4">
+            <div class="stat-box"><div id="statLT" class="stat-num lt">—</div><div class="stat-lbl">Long-term</div></div>
+            <div class="stat-box"><div id="statST" class="stat-num st">—</div><div class="stat-lbl">Short-term</div></div>
+            <div class="stat-box"><div id="statBuf" class="stat-num buf">—</div><div class="stat-lbl">Buffer</div></div>
+            <div class="stat-box"><div id="statJunk" class="stat-num jk">—</div><div class="stat-lbl">Junk</div></div>
+          </div>
+          <div id="memMood" class="card" style="margin-top:4px;display:flex;align-items:center;gap:10px">
+            <span style="font-size:22px" id="memMoodIcon">🧠</span>
+            <span style="font-size:13px;color:var(--text2)" id="memMoodText">Loading…</span>
+          </div>
+          <div class="card">
+            <div class="card-label">⏰ Reminders</div>
+            <div id="remindersList"><span class="dim">Loading…</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ▸ Quick Settings -->
+      <div class="collapse-header" onclick="toggleCollapse('settings')" id="ch-settings">
+        <span class="ch-icon">▶</span>
+        <span class="ch-title">Quick Settings</span>
+        <span class="ch-badge" id="ch-badge-settings">edit</span>
+      </div>
+      <div class="collapse-body" id="cb-settings">
+        <div class="collapse-body-inner">
+          <div class="card">
+            <div class="card-label">🎛 Generation</div>
+            <div class="field"><label>Temperature</label><input type="number" id="s-temp" step="0.05" min="0" max="2"></div>
+            <div class="field"><label>Max Output Tokens</label><input type="number" id="s-mtok"></div>
+            <div class="field"><label>Repetition Penalty</label><input type="number" id="s-rep" step="0.05" min="1" max="2"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">🧠 Memory</div>
+            <div class="field"><label>Eval Interval (messages)</label><input type="number" id="s-meval"></div>
+            <div class="field"><label>Buffer Window</label><input type="number" id="s-bufw"></div>
+            <div class="field"><label>LT Score Minimum (0-10)</label><input type="number" id="s-lts" min="0" max="10"></div>
+            <div class="field"><label>Memory Max Tokens</label><input type="number" id="s-mmtok"></div>
+          </div>
+          <div class="card">
+            <div class="card-label">⚙ System</div>
+            <div class="field"><label>Default City</label><input type="text" id="s-city"></div>
+            <div class="field"><label>Idle Sleep (minutes, 0=off)</label><input type="number" id="s-idle" min="0"></div>
+            <div class="field"><label>Proactivity Level</label><input type="number" id="s-pro" min="0" max="5"></div>
+            <div class="field"><label>Search Results</label><input type="number" id="s-sr" min="1" max="10"></div>
+            <div class="toggle-row"><span class="toggle-lbl">Semantic Memory</span><div class="toggle" id="t-semantic" onclick="toggleSwitch(this)"></div></div>
+          </div>
+          <div class="flex-w">
+            <button class="btn btn-primary" onclick="saveSettings()">💾 Apply &amp; Restart</button>
+            <button class="btn" onclick="loadSettings()">↻ Reload</button>
+          </div>
+        </div>
+      </div>
+
     </div>
 
-    <!-- CHAT -->
+    <!-- ═══════════ CHAT ═══════════ -->
     <div class="page" id="page-chat">
       <div class="chat-hdr">
         <span class="chat-hdr-l"><span id="chatStatus">ready</span></span>
@@ -365,62 +485,76 @@ a{color:var(--accent);text-decoration:none}
       </div>
     </div>
 
-    <!-- PIPELINE -->
-    <div class="page" id="page-pipeline">
-      <div class="flex" style="align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span class="stitle">Live Pipeline <span class="badge badge-green pulse" style="animation:pulse 2s ease-in-out infinite">LIVE</span></span>
-        <button class="btn btn-ghost btn-sm" onclick="clearPipeline()">Clear</button>
-      </div>
-      <div class="pipe-filter" id="pipeFilter">
-        <button class="pf-btn active" data-filter="all" onclick="setPipeFilter('all',this)">All</button>
-        <button class="pf-btn" data-filter="MAIN_LLM" onclick="setPipeFilter('MAIN_LLM',this)">LLM</button>
-        <button class="pf-btn" data-filter="USER" onclick="setPipeFilter('USER',this)">User</button>
-        <button class="pf-btn" data-filter="TOOL" onclick="setPipeFilter('TOOL',this)">Tools</button>
-        <button class="pf-btn" data-filter="MEMORY_EVAL" onclick="setPipeFilter('MEMORY_EVAL',this)">Memory</button>
-        <button class="pf-btn" data-filter="ERROR" onclick="setPipeFilter('ERROR',this)">Errors</button>
-      </div>
-      <div class="pipe-log" id="pipeLog"><div class="pipe-empty">Waiting for events…</div></div>
-    </div>
+    <!-- ═══════════ BOT ═══════════ -->
+    <div class="page" id="page-bot">
 
-    <!-- MEMORY -->
-    <div class="page" id="page-memory">
+      <!-- Status -->
       <div class="grid-2">
-        <div class="stat-box"><div id="statLT" class="stat-num lt">—</div><div class="stat-lbl">Long-term</div></div>
-        <div class="stat-box"><div id="statST" class="stat-num st">—</div><div class="stat-lbl">Short-term</div></div>
-        <div class="stat-box"><div id="statBuf" class="stat-num buf">—</div><div class="stat-lbl">Buffer</div></div>
-        <div class="stat-box"><div id="statJunk" class="stat-num jk">—</div><div class="stat-lbl">Junk</div></div>
-      </div>
-      <div id="memMood" class="mem-mood"><div class="mem-mood-icon">🧠</div><div class="mem-mood-text">Loading…</div></div>
-      <div class="card">
-        <div class="card-label">⏰ Reminders</div>
-        <div class="mem-reminders" id="remindersList"><span class="dim">Loading…</span></div>
-      </div>
-    </div>
-
-    <!-- DIAGNOSTICS -->
-    <div class="page" id="page-diag">
-      <div class="flex-w mb-8">
-        <button class="btn btn-sm btn-primary" onclick="runDiagnostics()">🏥 Run Now</button>
-        <button class="btn btn-sm" onclick="loadReflections()">🔄 Reflections</button>
-        <button class="btn btn-sm" onclick="loadQuality()">⭐ Quality</button>
-        <button class="btn btn-sm" onclick="loadContradictions()">⚡ Contradictions</button>
-        <button class="btn btn-sm" onclick="loadCuriosity()">🔍 Curiosity</button>
-        <button class="btn btn-sm" onclick="loadAutoTune()">📊 Auto-Tune</button>
-      </div>
-      <div id="diagContent">
-        <div class="card">
-          <div class="card-label">🏥 System Health</div>
-          <div id="diagHealth"><span class="dim">Click "Run Now" or wait for auto-refresh.</span></div>
+        <div class="card" style="text-align:center;padding:16px 10px">
+          <div style="font-size:28px;font-weight:800;font-family:var(--mono);color:var(--accent)" id="bot-status-text">—</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">Bot Status</div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px 10px">
+          <div style="font-size:18px;font-weight:700;font-family:var(--mono);word-break:break-all;color:var(--text2)" id="bot-mode-text">—</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">Mode</div>
         </div>
       </div>
+
+      <!-- Controls -->
+      <div class="card">
+        <div class="card-label">▶ Bot Controls</div>
+        <div class="btn-group">
+          <button class="btn btn-sm btn-primary" onclick="botCtl('start')">▶ Start</button>
+          <button class="btn btn-sm btn-danger" onclick="botCtl('stop')">⏹ Stop</button>
+          <button class="btn btn-sm" onclick="botCtl('restart')">↻ Restart</button>
+        </div>
+      </div>
+
+      <!-- Telegram -->
+      <div class="card">
+        <div class="card-label">✈ Telegram</div>
+        <div class="field">
+          <label>Bot Token</label>
+          <div class="token-row">
+            <input type="password" id="bot-token" placeholder="123456:ABC-def…" autocomplete="off">
+            <button class="btn btn-sm btn-ghost" onclick="toggleTokenVis()">👁</button>
+          </div>
+        </div>
+        <div class="flex-w">
+          <button class="btn btn-sm btn-primary" onclick="saveTelegramToken()">💾 Save Token</button>
+          <button class="btn btn-sm" onclick="testTelegramToken()">📡 Test</button>
+        </div>
+        <div class="toggle-row" style="margin-top:8px">
+          <span class="toggle-lbl">Enable Telegram Bot</span>
+          <div class="toggle" id="t-telegram" onclick="toggleSwitch(this)"></div>
+        </div>
+      </div>
+
+      <!-- Log -->
+      <div class="card">
+        <div class="card-label">📋 Bot Log</div>
+        <button class="btn btn-sm" onclick="toggleLog()" id="logToggleBtn">Show Log</button>
+        <div class="log-viewer" id="botLog" style="display:none;margin-top:8px;font-family:var(--mono);font-size:11px;white-space:pre-wrap;word-break:break-all;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;max-height:50vh;overflow-y:auto;line-height:1.6;color:var(--text2)"></div>
+      </div>
     </div>
 
-    <!-- MODELS -->
+    <!-- ═══════════ MODELS ═══════════ -->
     <div class="page" id="page-models">
-      <div class="flex-w mb-8">
-        <button class="btn btn-sm btn-primary" onclick="loadModels()">↻ Refresh</button>
+
+      <div class="card">
+        <div class="card-label">🤖 Installed Models
+          <button class="btn btn-ghost btn-sm" onclick="loadModels()" style="margin-left:auto">↻ Refresh</button>
+        </div>
+        <div id="modelList"><div class="skeleton" style="height:80px;margin-bottom:8px"></div></div>
       </div>
-      <div id="modelList"><div class="skeleton" style="height:80px;margin-bottom:8px"></div></div>
+
+      <div class="card">
+        <div class="card-label">📥 Recommended Models</div>
+        <div id="recommendedList">
+          <div class="skeleton" style="height:60px;margin-bottom:6px"></div>
+        </div>
+      </div>
+
       <div class="custom-dl">
         <div class="stitle mb-8">⬇ Custom Download</div>
         <div class="field"><label>GGUF URL</label><input type="text" id="customUrl" placeholder="https://huggingface.co/…/model.gguf"></div>
@@ -430,46 +564,7 @@ a{color:var(--accent);text-decoration:none}
       </div>
     </div>
 
-    <!-- SETTINGS -->
-    <div class="page" id="page-settings">
-      <div class="card">
-        <div class="card-label">🎛 Generation</div>
-        <div class="field"><label>Temperature</label><input type="number" id="s-temp" step="0.05" min="0" max="2"></div>
-        <div class="field"><label>Max Output Tokens</label><input type="number" id="s-mtok"></div>
-        <div class="field"><label>Repetition Penalty</label><input type="number" id="s-rep" step="0.05" min="1" max="2"></div>
-      </div>
-      <div class="card">
-        <div class="card-label">🧠 Memory</div>
-        <div class="field"><label>Eval Interval (messages)</label><input type="number" id="s-meval"></div>
-        <div class="field"><label>Buffer Window</label><input type="number" id="s-bufw"></div>
-        <div class="field"><label>LT Score Minimum (0-10)</label><input type="number" id="s-lts" min="0" max="10"></div>
-        <div class="field"><label>Memory Max Tokens</label><input type="number" id="s-mmtok"></div>
-      </div>
-      <div class="card">
-        <div class="card-label">⚙ System</div>
-        <div class="field"><label>Default City</label><input type="text" id="s-city"></div>
-        <div class="field"><label>Idle Sleep (minutes, 0=off)</label><input type="number" id="s-idle" min="0"></div>
-        <div class="field"><label>Proactivity Level</label><input type="number" id="s-pro" min="0" max="5"></div>
-        <div class="field"><label>Search Results</label><input type="number" id="s-sr" min="1" max="10"></div>
-        <div class="toggle-row"><span class="toggle-lbl">Semantic Memory</span><div class="toggle" id="t-semantic" onclick="toggleSwitch(this)"></div></div>
-      </div>
-      <div class="flex-w mb-8">
-        <button class="btn btn-primary" onclick="saveSettings()">💾 Apply & Restart</button>
-        <button class="btn" onclick="loadSettings()">↻ Reload</button>
-      </div>
-      <div class="card">
-        <div class="card-label">🤖 Bot Controls</div>
-        <div class="btn-group">
-          <button class="btn btn-sm btn-primary" onclick="botCtl('start')">▶ Start</button>
-          <button class="btn btn-sm btn-danger" onclick="botCtl('stop')">⏹ Stop</button>
-          <button class="btn btn-sm" onclick="botCtl('restart')">↻ Restart</button>
-          <button class="btn btn-sm" onclick="toggleLog()">📋 Log</button>
-        </div>
-        <div class="log-viewer" id="botLog" style="display:none;margin-top:8px">Loading…</div>
-      </div>
-    </div>
-
-    <!-- FILES -->
+    <!-- ═══════════ FILES ═══════════ -->
     <div class="page" id="page-files">
       <div class="flex-w mb-8">
         <button class="btn btn-sm btn-ghost" onclick="fmUp()">⬆ Up</button>
@@ -506,7 +601,7 @@ a{color:var(--accent);text-decoration:none}
 
   </div><!-- /pages -->
 
-  <!-- ── Tab bar ──────────────── -->
+  <!-- ── Tab bar (5) ────────────── -->
   <div class="tabbar">
     <button class="tab active" id="tab-dashboard" onclick="showPage('dashboard',this)">
       <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home
@@ -514,20 +609,11 @@ a{color:var(--accent);text-decoration:none}
     <button class="tab" id="tab-chat" onclick="showPage('chat',this)">
       <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Chat
     </button>
-    <button class="tab" id="tab-pipeline" onclick="showPage('pipeline',this)">
-      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Pipeline
-    </button>
-    <button class="tab" id="tab-memory" onclick="showPage('memory',this)">
-      <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>Memory
-    </button>
-    <button class="tab" id="tab-diag" onclick="showPage('diag',this)">
-      <svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Health
+    <button class="tab" id="tab-bot" onclick="showPage('bot',this)">
+      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="16" r="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Bot
     </button>
     <button class="tab" id="tab-models" onclick="showPage('models',this)">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>Models
-    </button>
-    <button class="tab" id="tab-settings" onclick="showPage('settings',this)">
-      <svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Settings
     </button>
     <button class="tab" id="tab-files" onclick="showPage('files',this)">
       <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>Files
@@ -556,6 +642,19 @@ function toast(msg,type='ok'){
 function toggleSwitch(el){el.classList.toggle('on')}
 function toggleSet(id,v){const el=$_(id);if(el)el.classList.toggle('on',!!v)}
 
+// ── Collapse sections ────────────────────────────
+function toggleCollapse(id){
+  const h=$_('ch-'+id),b=$_('cb-'+id);
+  h.classList.toggle('open');b.classList.toggle('open');
+  // lazy load
+  if(b.classList.contains('open')){
+    if(id==='health'){if(!$_('diagHealth').dataset.loaded)loadDiagnostics()}
+    if(id==='memory'){loadMemStats();loadMood();loadReminders()}
+    if(id==='settings'){loadSettings()}
+    if(id==='activity'&&!window._pipeInit)initPipeline()
+  }
+}
+
 // ═════════════════════════════════════════════════════════
 // NAVIGATION
 // ═════════════════════════════════════════════════════════
@@ -565,17 +664,12 @@ function showPage(id,btn){
   $_('page-'+id).classList.add('active');
   if(btn)btn.classList.add('active');
   const f={
-    memory:()=>{loadMemStats();loadMood();loadReminders()},
-    diag:()=>{loadDiagnostics()},
-    models:()=>{loadModels()},
-    settings:()=>{loadSettings()},
-    dashboard:()=>{loadDashboard()},
-    files:()=>{fmGoHome()},
-    pipeline:()=>{if(!_pipeInit)initPipeline()}
+    dashboard:()=>loadDashboard(),
+    models:()=>loadModels(),
+    files:()=>fmGoHome(),
+    bot:()=>loadBotPage(),
   }[id];
   if(f)f();
-  // lazy load pipeline SSE
-  if(id==='pipeline'&&!_pipeInit)initPipeline();
 }
 
 // ═════════════════════════════════════════════════════════
@@ -603,7 +697,6 @@ function addMsg(who,text,id,extra=''){
   d.className='msg '+who+(extra?' '+extra:'');
   if(id)d.id=id;
   d.textContent=text;
-  // remove empty state
   const es=$_('chatEmpty');
   if(es&&es.parentNode===el)es.remove();
   el.appendChild(d);
@@ -623,7 +716,6 @@ async function sendChat(){
   addMsg('user',text);
   const botId='bot-'+Date.now();
   addMsg('bot','…',botId,'streaming');
-  // typing indicator
   const ti=document.createElement('div');
   ti.className='typing';ti.id='typing-'+botId;
   ti.innerHTML='<span></span><span></span><span></span>';
@@ -640,7 +732,6 @@ async function sendChat(){
     const reader=resp.body.getReader();
     const dec=new TextDecoder();
     let buf='';
-    // remove typing dots
     const typingEl=$_('typing-'+botId);
     if(typingEl)typingEl.remove();
 
@@ -722,14 +813,13 @@ function initPipeline(){
       if(_pipe.textContent==='Waiting for events…'||_pipe.querySelector('.pipe-empty'))_pipe.innerHTML='';
     }catch(e){}
   };
-  evt.onerror=()=>{/* reconnect automatically */};
+  evt.onerror=()=>{};
 }
 
 function setPipeFilter(f,btn){
   _pipeFilter=f;
   document.querySelectorAll('.pf-btn').forEach(b=>b.classList.remove('active'));
   if(btn)btn.classList.add('active');
-  // re-show matching events
   Array.from(_pipe.children).forEach(row=>{
     if(f==='all'){row.style.display='flex';return;}
     const stage=row.querySelector('.pipe-stage');
@@ -737,12 +827,8 @@ function setPipeFilter(f,btn){
   });
 }
 
-function clearPipeline(){
-  _pipe.innerHTML='<div class="pipe-empty">Events cleared.</div>';
-}
-
 // ═════════════════════════════════════════════════════════
-// MEMORY
+// MEMORY (loaded in Dashboard)
 // ═════════════════════════════════════════════════════════
 async function loadMemStats(){
   try{
@@ -757,7 +843,8 @@ async function loadMood(){
   try{
     const m=await api('/api/mood');
     const icons={'happy':'😊','sad':'😢','curious':'🤔','neutral':'🧠','excited':'🤩','tired':'😴'};
-    $_('memMood').innerHTML='<div class="mem-mood-icon">'+(icons[m.label]||'🧠')+'</div><div class="mem-mood-text">'+(m.line||'Neutral')+'</div>';
+    $_('memMoodIcon').textContent=icons[m.label]||'🧠';
+    $_('memMoodText').textContent=m.line||'Neutral';
   }catch(e){}
 }
 async function loadReminders(){
@@ -765,15 +852,16 @@ async function loadReminders(){
     const r=await api('/api/reminders');
     const rems=r.reminders||[];
     $_('remindersList').innerHTML=rems.length
-      ? rems.map(rm=>'<div class="mem-reminder"><span class="r-time">'+String(rm.hour).padStart(2,'0')+':'+String(rm.minute).padStart(2,'0')+'</span><span class="r-text">'+esc(rm.text)+'</span><span class="r-badge">'+(rm.daily?'daily':'once')+'</span></div>').join('')
+      ? rems.map(rm=>'<div class="mem-reminder" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)"><span style="font-family:var(--mono);color:var(--accent);font-size:11px;min-width:48px">'+String(rm.hour).padStart(2,'0')+':'+String(rm.minute).padStart(2,'0')+'</span><span style="flex:1;color:var(--text2);font-size:12px">'+esc(rm.text)+'</span><span style="font-size:9px;color:var(--dim)">'+(rm.daily?'daily':'once')+'</span></div>').join('')
       : '<span class="dim">No reminders set.</span>';
   }catch(e){}
 }
 
 // ═════════════════════════════════════════════════════════
-// DIAGNOSTICS
+// DIAGNOSTICS (loaded in Dashboard)
 // ═════════════════════════════════════════════════════════
 async function loadDiagnostics(){
+  $_('diagHealth').dataset.loaded='1';
   try{
     const d=await api('/api/diagnostics');
     renderDiagnostics(d);
@@ -809,7 +897,6 @@ function renderDiagnostics(d){
     </div>
   </div>`;
 
-  // self-monitor quality scores
   if(d.quality_scores&&d.quality_scores.length){
     const avg=d.quality_scores.reduce((a,b)=>a+b,0)/d.quality_scores.length;
     diagHtml+=`<div class="card">
@@ -820,7 +907,6 @@ function renderDiagnostics(d){
     </div>`;
   }
 
-  // corrections detected
   if(d.corrections&&d.corrections.length){
     diagHtml+=`<div class="card">
       <div class="card-label">🔧 Recent Corrections</div>
@@ -838,7 +924,7 @@ async function runDiagnostics(){
     renderDiagnostics(d);
     toast('Diagnostics complete','ok');
   }catch(e){
-    toast('Diagnostics error: '+e.message,'err');
+    toast('Diagnostics error','err');
     loadDiagnostics();
   }
 }
@@ -921,15 +1007,42 @@ async function loadModels(){
   try{
     const r=await api('/api/models');
     let h='';
+    let recH='';
+    const presets=[];
     for(const m of r.models){
+      if(m.custom){
+        // show custom models in installed section only
+        const st=m.present?(m.valid?'<span class="badge badge-green">✓</span>':'<span class="badge badge-red">⚠</span>'):'';
+        const act=m.active?'<span class="badge badge-accent">ACTIVE</span>':'';
+        const btns=[];
+        if(m.present&&m.valid&&!m.active)
+          btns.push(`<button class="btn btn-sm btn-primary" onclick="switchModel('${esc(m.file)}','${esc(m.name)}')">⇄ Switch</button>`);
+        if(m.present)
+          btns.push(`<button class="btn btn-sm btn-danger" onclick="deleteModel('${esc(m.file)}')">🗑 Delete</button>`);
+        if(m.present&&!m.valid)
+          btns.push(`<button class="btn btn-sm" onclick="redownloadModel('${esc(m.file)}')">↻ Re-download</button>`);
+        if(!m.present)
+          btns.push(`<button class="btn btn-sm" onclick="deleteModel('${esc(m.file)}')">🗑 Remove entry</button>`);
+        h+=`<div class="mcard">
+          <div class="mcard-top">
+            <span class="mcard-name">${esc(m.name)} ${act} ${st}</span>
+          </div>
+          <div class="mcard-meta"><span>${m.size||''}</span></div>
+          <div class="mcard-actions">${btns.join('')}</div>
+        </div>`;
+        continue;
+      }
+      presets.push(m);
       const st=m.present?(m.valid?'<span class="badge badge-green">✓</span>':'<span class="badge badge-red">⚠ corrupt</span>'):'<span class="badge badge-dim">not on disk</span>';
       const act=m.active?'<span class="badge badge-accent">ACTIVE</span>':'';
       const btns=[];
       if(m.present&&m.valid&&!m.active)
         btns.push(`<button class="btn btn-sm btn-primary" onclick="switchModel('${esc(m.file)}','${esc(m.name)}')">⇄ Switch</button>`);
+      if(m.present)
+        btns.push(`<button class="btn btn-sm btn-danger" onclick="deleteModel('${esc(m.file)}')">🗑 Delete</button>`);
       if(m.present&&!m.valid)
-        btns.push(`<button class="btn btn-sm btn-danger" onclick="redownloadModel('${esc(m.file)}')">↻ Re-download</button>`);
-      if(!m.present&&m.url)
+        btns.push(`<button class="btn btn-sm" onclick="redownloadModel('${esc(m.file)}')">↻ Re-download</button>`);
+      if(!m.present)
         btns.push(`<button class="btn btn-sm" onclick="startDownload('${esc(m.file)}','${esc(m.url)}','${esc(m.name)}')">⬇ Download</button>`);
       h+=`<div class="mcard">
         <div class="mcard-top">
@@ -939,7 +1052,23 @@ async function loadModels(){
         <div class="mcard-actions">${btns.join('')}</div>
       </div>`;
     }
-    $_('modelList').innerHTML=h||'<div class="empty-state"><div class="es-title">No models found</div><div class="es-desc">Place .gguf files in ~/nermana/models/</div></div>';
+    // recommended = presets not on disk
+    const recs=presets.filter(m=>!m.present);
+    if(recs.length){
+      recH=recs.map(m=>`<div class="mcard" style="background:var(--surface)">
+        <div class="mcard-top">
+          <span class="mcard-name">${esc(m.name)}</span>
+          <span class="badge badge-dim">${m.size||''}</span>
+        </div>
+        <div class="mcard-actions">
+          <button class="btn btn-sm btn-primary" onclick="startDownload('${esc(m.file)}','${esc(m.url)}','${esc(m.name)}')">⬇ Download</button>
+        </div>
+      </div>`).join('');
+    }else{
+      recH='<div class="dim" style="padding:8px 0;font-size:12px">All recommended models are installed.</div>';
+    }
+    $_('modelList').innerHTML=h||'<div class="empty-state"><div class="es-title">No models on disk</div><div class="es-desc">Download from Recommended below, or use Custom Download.</div></div>';
+    $_('recommendedList').innerHTML=recH;
   }catch(e){
     $_('modelList').innerHTML='<div class="empty-state"><div class="es-title">Error loading models</div><div class="es-desc">'+esc(e.message)+'</div></div>';
   }
@@ -950,7 +1079,7 @@ async function startDownload(file,url,name){
   if(_dlPoll){toast('Download in progress','info');return;}
   const r=await fetch('/api/models/download',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file,url,name})}).then(r=>r.json());
   if(r.error){toast(r.error,'err');return;}
-  toast('Downloading: '+file,'info');
+  toast('Downloading: '+name,'info');
   pollDownload();
 }
 async function redownloadModel(file){
@@ -994,6 +1123,14 @@ async function switchModel(file,name){
     setTimeout(loadModels,4000);
   }catch(e){toast(e.message,'err');}
 }
+async function deleteModel(file){
+  if(!confirm('Delete '+file+'?'))return;
+  try{
+    const r=await api('/api/models/delete',{method:'POST',body:JSON.stringify({file})});
+    toast('Deleted: '+file,'ok');
+    loadModels();
+  }catch(e){toast(e.message,'err');}
+}
 
 // ═════════════════════════════════════════════════════════
 // SETTINGS
@@ -1015,8 +1152,6 @@ async function loadSettings(){
     toggleSet('t-semantic',s.semantic_enabled);
   }catch(e){toast('Error loading settings','err');}
 }
-
-
 
 async function saveSettings(){
   const data={
@@ -1044,7 +1179,59 @@ async function botCtl(action){
     const r=await api('/api/bot_control',{method:'POST',body:JSON.stringify({action})});
     toast(action+': '+(r.output?.slice(-60)||'done'),'ok');
     setTimeout(pollStatus,2000);
+    loadBotPage();
   }catch(e){toast('Error','err');}
+}
+
+// ═════════════════════════════════════════════════════════
+// BOT page
+// ═════════════════════════════════════════════════════════
+async function loadBotPage(){
+  try{
+    const s=await api('/api/status');
+    $_('bot-status-text').textContent=s.bot?'RUNNING':'STOPPED';
+    $_('bot-status-text').style.color=s.bot?'var(--accent3)':'var(--accent4)';
+    $_('bot-mode-text').textContent=s.llm_server?'Online':'Offline';
+    $_('bot-mode-text').style.color=s.llm_server?'var(--accent3)':'var(--text2)';
+  }catch(e){}
+  // load token
+  try{
+    const cfg=await api('/api/settings');
+    if(cfg.telegram_token){
+      $_('bot-token').value=cfg.telegram_token;
+      toggleSet('t-telegram',true);
+    }
+  }catch(e){}
+}
+
+async function saveTelegramToken(){
+  const token=$_('bot-token').value.trim();
+  if(!token){toast('Enter a token','err');return;}
+  try{
+    await api('/api/settings',{method:'POST',body:JSON.stringify({telegram_token:token})});
+    toast('Token saved — restart bot to apply','ok');
+  }catch(e){toast(e.message,'err');}
+}
+
+async function testTelegramToken(){
+  const token=$_('bot-token').value.trim();
+  if(!token){toast('Enter a token first','err');return;}
+  try{
+    const r=await fetch('https://api.telegram.org/bot'+token+'/getMe').then(r=>r.json());
+    if(r.ok){
+      toast('✓ Token valid — bot: @'+(r.result?.username||'?'),'ok');
+    }else{
+      toast('✗ Invalid token: '+r.description,'err');
+    }
+  }catch(e){
+    toast('Connection error: '+e.message,'err');
+  }
+}
+
+let _tokenVis=false;
+function toggleTokenVis(){
+  _tokenVis=!_tokenVis;
+  $_('bot-token').type=_tokenVis?'text':'password';
 }
 
 let _logVisible=false;
@@ -1052,6 +1239,7 @@ async function toggleLog(){
   const area=$_('botLog');
   _logVisible=!_logVisible;
   area.style.display=_logVisible?'block':'none';
+  $_('logToggleBtn').textContent=_logVisible?'Hide Log':'Show Log';
   if(!_logVisible)return;
   try{
     const r=await api('/api/bot_log');
@@ -1060,7 +1248,7 @@ async function toggleLog(){
       if(l.includes('ERROR')||l.includes('error'))cls='err';
       else if(l.includes('WARNING'))cls='warn';
       else if(l.includes('INFO'))cls='info';
-      return '<span class="'+cls+'">'+esc(l)+'</span>';
+      return '<span style="color:'+(cls==='err'?'var(--accent4)':cls==='warn'?'var(--yellow)':cls==='info'?'var(--accent)':'inherit')+'">'+esc(l)+'</span>';
     }).join('\n')||'(empty)';
     area.scrollTop=area.scrollHeight;
   }catch(e){area.textContent='Error loading log';}
@@ -1076,25 +1264,101 @@ async function loadDashboard(){
     $_('dash-llm').style.color=d.llm?'var(--accent3)':'var(--accent4)';
     $_('dash-bot').textContent=d.bot?'ON':'OFF';
     $_('dash-bot').style.color=d.bot?'var(--accent)':'var(--accent4)';
+    $_('dash-model').textContent=d.active_model||'—';
     $_('dash-lt').textContent=d.memory.long_term||0;
     $_('dash-st').textContent=d.memory.short_term||0;
     $_('dash-buf').textContent=d.memory.buffer||0;
     $_('dash-junk').textContent=d.memory.junk||0;
-    $_('dash-files').textContent=d.total_files||0;
-    $_('dash-dirs').textContent=d.total_dirs||0;
-    const ev=d.recent_events||[];
-    const el=$_('dash-events');
-    if(ev.length){
-      el.innerHTML=ev.slice(-10).reverse().map(e=>
-        '<div class="pipe-evt"><div class="pipe-ts">'+(e.ts_human||'')+'</div><div class="pipe-stage '+e.stage+'">'+e.stage+'</div><div class="pipe-data">'+esc(typeof e.data==='object'?Object.values(e.data).join(' ').slice(0,80):String(e.data).slice(0,80))+'</div></div>'
-      ).join('');
-    }else{
-      el.innerHTML='<div class="pipe-empty">No recent events</div>';
-    }
   }catch(e){}
 }
 loadDashboard();
 setInterval(loadDashboard,15000);
+
+// ═════════════════════════════════════════════════════════
+// VERSION & UPDATES
+// ═════════════════════════════════════════════════════════
+async function loadVersion(){
+  try{
+    const v=await api('/api/version');
+    $_('v-current').textContent=v.current_version||'—';
+    $_('v-commit').textContent='#'+(v.commit||'—');
+    const be=v.behind;
+    if(typeof be==='number'&&be>0){
+      $_('v-behind').textContent=be+' commit'+(be>1?'s':'')+' behind';
+      $_('v-behind').className='badge badge-yellow';
+      $_('btn-update').style.display='inline-flex';
+    }else if(be===0){
+      $_('v-behind').textContent='up to date';
+      $_('v-behind').className='badge badge-green';
+      $_('btn-update').style.display='none';
+    }else{
+      $_('v-behind').textContent='—';
+      $_('v-behind').className='badge badge-dim';
+    }
+  }catch(e){
+    $_('v-current').textContent='error';
+  }
+}
+
+async function checkUpdate(){
+  const log=$_('updateLog');
+  log.style.display='block';
+  log.textContent='Checking…';
+  try{
+    const v=await api('/api/version');
+    log.textContent=v.history?.join('\n')||'No history';
+    if(v.can_update){
+      log.textContent+='\n\n⬇ Update available ('+v.behind+' commits behind)';
+      $_('btn-update').style.display='inline-flex';
+    }else{
+      log.textContent+='\n\n✓ Up to date';
+    }
+  }catch(e){
+    log.textContent='Error: '+e.message;
+  }
+}
+
+async function doUpdate(){
+  const log=$_('updateLog');
+  log.style.display='block';
+  log.textContent='Pulling…';
+  $_('btn-update').disabled=true;
+  try{
+    const r=await api('/api/update/pull',{method:'POST'});
+    log.textContent=r.output||'Done';
+    setTimeout(loadVersion,2000);
+  }catch(e){
+    log.textContent='Error: '+e.message;
+  }
+  $_('btn-update').disabled=false;
+}
+
+async function doRollback(){
+  if(!confirm('Rollback to previous commit? Changes will be lost.'))return;
+  const log=$_('updateLog');
+  log.style.display='block';
+  log.textContent='Rolling back…';
+  try{
+    const r=await api('/api/update/rollback',{method:'POST',body:JSON.stringify({steps:1})});
+    log.textContent=r.output||'Done';
+    setTimeout(loadVersion,3000);
+  }catch(e){
+    log.textContent='Error: '+e.message;
+  }
+}
+
+async function doReinstall(){
+  if(!confirm('Reinstall NERMANA? Models will be preserved.'))return;
+  const log=$_('updateLog');
+  log.style.display='block';
+  log.textContent='Reinstalling… (check server terminal for progress)';
+  try{
+    const r=await api('/api/reinstall',{method:'POST'});
+    log.textContent=r.output||'Reinstall completed';
+  }catch(e){
+    log.textContent='Error: '+e.message;
+  }
+}
 
 // ═════════════════════════════════════════════════════════
 // FILES — full CRUD file manager
@@ -1127,7 +1391,6 @@ async function fmLoad(){
   $_('fmEditor').classList.remove('open');
   $_('fmUpload').classList.remove('open');
   $_('fmToolbar').style.display='none';
-  // breadcrumb
   const parts=_fmPath.split('/').filter(Boolean);
   let bc='<span data-idx="-1" onclick="fmGoHome()" style="color:var(--accent)">~</span>';
   parts.forEach((p,i)=>{bc+='<span style="color:var(--dim);margin:0 2px">/</span><span data-idx="'+i+'" style="color:'+(i===parts.length-1?'var(--text)':'var(--text2)')+'">'+esc(p)+'</span>';});
@@ -1145,7 +1408,6 @@ async function fmLoad(){
       return;
     }
     let h='';
-    // sort: dirs first, then files
     const dirs=r.entries.filter(e=>e.is_dir).sort((a,b)=>a.name.localeCompare(b.name));
     const files=r.entries.filter(e=>!e.is_dir).sort((a,b)=>a.name.localeCompare(b.name));
     for(const e of[...dirs,...files]){
@@ -1173,7 +1435,7 @@ function fmOpen(name,isDir){
   }else{
     const p=_fmPath?_fmPath+'/'+name:name;
     _fmFile=p;
-    fmLoad(); // loads file content
+    fmLoad();
   }
 }
 
@@ -1266,7 +1528,6 @@ async function fmUploadFile(input){
 // ═════════════════════════════════════════════════════════
 document.addEventListener('keydown',e=>{
   if(e.ctrlKey&&e.key==='Enter')sendChat();
-  // Ctrl+S to save file in editor
   if(e.ctrlKey&&e.key==='s'&&$_('fmEditor').classList.contains('open')){e.preventDefault();fmSave();}
 });
 </script>

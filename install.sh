@@ -5,22 +5,63 @@
 # Repository: https://github.com/joelagdam/nermana_ai
 #
 # Usage:
-#   bash install.sh                          # interactive
-#   bash install.sh --quick                  # skip model prompts, use defaults
+#   bash install.sh                 interactive (recommended)
+#   bash install.sh --quick         skip prompts, auto-select first model
 # ================================================================
 
 _QUICK_MODE=false
 for _arg in "$@"; do [ "$_arg" = "--quick" ] && _QUICK_MODE=true; done
 
-GREEN="\e[32m"; RED="\e[31m"; CYAN="\e[36m"; YELLOW="\e[33m"; BOLD="\e[1m"; DIM="\e[2m"; RESET="\e[0m"
-ok()      { echo -e "${GREEN}[✓]${RESET} $1"; }
-warn()    { echo -e "${YELLOW}[!]${RESET} $1"; }
-fail()    { echo -e "${RED}[✗]${RESET} $1"; exit 1; }
-info()    { echo -e "${CYAN}[i]${RESET} $1"; }
-section() { echo -e "\n${BOLD}${CYAN}━━━ $1 ━━━${RESET}"; }
-prompt_yn() { local d=$2; read -p "$1 [Y/n]: " r; [[ "$r" =~ ^[nN] ]] && return 1; return 0; }
-prompt_choose() { read -p "$1 " r; echo "$r"; }
+# ── Terminal formatting ──────────────────────────
+BOLD="\e[1m"; DIM="\e[2m"; RESET="\e[0m"
+GREEN="\e[32m"; RED="\e[31m"; CYAN="\e[36m"; YELLOW="\e[33m"; MAGENTA="\e[35m"
 
+ok()      { echo -e " ${GREEN}✔${RESET} $1"; }
+warn()    { echo -e " ${YELLOW}⚠${RESET} $1"; }
+fail()    { echo -e " ${RED}✖${RESET} $1"; exit 1; }
+info()    { echo -e " ${CYAN}ℹ${RESET} $1"; }
+section() { echo -e "\n ${BOLD}${MAGENTA}◆${RESET} ${BOLD}$1${RESET}"; }
+sub()     { echo -e "    $1"; }
+prompt_yn() { read -p " ${CYAN}?${RESET} $1 [Y/n] " r; [[ "$r" =~ ^[nN] ]] && return 1; return 0; }
+
+# ── Download progress ────────────────────────────
+download_file() {
+    local url="$1" path="$2" label="$3"
+    local dir; dir=$(dirname "$path")
+    mkdir -p "$dir"
+    if [ -f "$path" ]; then
+        local size; size=$(stat -c%s "$path" 2>/dev/null || stat -f%z "$path" 2>/dev/null || echo 0)
+        if [ "$size" -gt 1000000 ]; then
+            ok "$label already exists ($(( size / 1048576 )) MB)"
+            return 0
+        fi
+    fi
+    echo -ne " ${CYAN}↓${RESET} Downloading ${BOLD}$label${RESET}...\n"
+    wget -c --show-progress "$url" -O "$path" 2>&1 | tail -5 || {
+        echo -ne "\r ${RED}✖${RESET} Download failed: $label\n"
+        return 1
+    }
+    local size2; size2=$(stat -c%s "$path" 2>/dev/null || stat -f%z "$path" 2>/dev/null || echo 0)
+    if [ "$size2" -gt 0 ]; then
+        echo -ne "\r ${GREEN}✔${RESET} $label — $(( size2 / 1048576 )) MB downloaded\n"
+    fi
+    return 0
+}
+
+build_spinner() {
+    # Run a command with a spinner while it's alive
+    local pid=$1 msg="$2"
+    local spin='⣷⣯⣟⡿⢿⣻⣽⣾'
+    local i=0
+    while kill -0 "$pid" 2>/dev/null; do
+        printf "\r ${CYAN}%s${RESET} %s" "${spin:$i:1}" "$msg"
+        i=$(( (i + 1) % 8 ))
+        sleep .3
+    done
+    printf "\r${DIM}  Done${RESET}  %s\n" "$msg"
+}
+
+# ── Paths ───────────────────────────────────────
 REPO_URL="https://github.com/joelagdam/nermana_ai.git"
 NERMANA_DIR="$HOME/nermana"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -29,88 +70,74 @@ LOG_FILE="$NERMANA_DIR/install.log"
 START_EPOCH=$(date +%s)
 
 mkdir -p "$NERMANA_DIR"
-exec 2>>"$LOG_FILE"  # capture stderr (append, don't overwrite in case of re-run)
+exec 2>>"$LOG_FILE"
 
-# ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
 # 0. Compatibility check
-# ─────────────────────────────────────────
-section "Compatibility check"
+# ═══════════════════════════════════════════════
+section "Checking environment"
 
 if [ ! -d "/data/data/com.termux" ] && [ ! -f "/data/data/com.termux/files/usr/bin/termux-info" ]; then
-    # not Termux — warn but proceed (user may be on Linux)
-    warn "Not running in Termux (Android). Some features may not work."
-    if [ "$(uname -s)" != "Linux" ]; then
-        fail "Unsupported OS: $(uname -s). This installer targets Termux / Linux."
-    fi
+    warn "Not running in Termux. Some features may not work."
+    [ "$(uname -s)" != "Linux" ] && fail "Unsupported OS: $(uname -s). Target: Termux / Linux."
 else
-    ok "Termux environment detected"
+    ok "Termux detected"
 fi
 
 ARCH=$(uname -m)
 case "$ARCH" in
-    aarch64|arm64) ok "Architecture: $ARCH (64-bit ARM)" ;;
-    armv7l|armv8l) warn "Architecture: $ARCH — llama.cpp may be slow. Consider a 64-bit device." ;;
-    x86_64|amd64)  ok "Architecture: $ARCH (x86_64)" ;;
-    *)             warn "Architecture: $ARCH — not tested, may have issues" ;;
+    aarch64|arm64) ok "Architecture: $ARCH";;
+    armv7l|armv8l) warn "$ARCH — llama.cpp may be slow. 64-bit ARM recommended.";;
+    x86_64|amd64)  ok "Architecture: $ARCH";;
+    *)             warn "$ARCH — untested";;
 esac
 
-# check disk space (need ~5GB for models + build)
 if command -v df &>/dev/null; then
     SPACE_KB=$(df "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')
     if [ -n "$SPACE_KB" ] && [ "$SPACE_KB" -lt 5000000 ] 2>/dev/null; then
-        warn "Low disk space: ~$(( SPACE_KB / 1000 )) MB free. Need ~5 GB for models + build."
-        prompt_yn "Continue anyway?" || fail "Aborted by user"
+        warn "Low disk: ~$(( SPACE_KB / 1000 )) MB free (need ~5 GB)"
+        prompt_yn "Continue anyway?" || fail "Aborted"
     else
-        ok "Disk space: ~$(( SPACE_KB / 1000 )) MB free"
+        ok "Disk: ~$(( SPACE_KB / 1000 )) MB free"
     fi
 fi
 
-# ─────────────────────────────────────────
-# 1. Remove existing nermana except models
-# ─────────────────────────────────────────
-section "Cleaning previous installation"
+# ═══════════════════════════════════════════════
+# 1. Remove old nermana (preserve models)
+# ═══════════════════════════════════════════════
+section "Cleaning previous install"
+
 if [ -d "$NERMANA_DIR" ]; then
-    info "Removing old nermana files (preserving models/)..."
+    info "Removing old files (preserving models/)..."
     for item in "$NERMANA_DIR"/*; do
         name="$(basename "$item")"
-        if [ "$name" = "models" ]; then
-            ok "Preserved $name/"
-        else
-            rm -rf "$item"
-            info "Removed $name"
-        fi
+        [ "$name" = "models" ] && ok "Preserved $name/" || { rm -rf "$item"; sub "Removed $name"; }
     done
-    # also remove hidden files except models/
     for item in "$NERMANA_DIR"/.*; do
         name="$(basename "$item")"
         [ "$name" = "." ] || [ "$name" = ".." ] || [ "$name" = "models" ] && continue
         rm -rf "$item"
     done
-    ok "Old installation cleaned"
+    ok "Cleaned"
 else
     mkdir -p "$NERMANA_DIR"
 fi
 
-# ─────────────────────────────────────────
-# 2. System update
-# ─────────────────────────────────────────
-section "System update"
-if command -v pkg &>/dev/null; then
-    pkg update -y 2>&1 | tail -1 || warn "pkg update had issues"
-    ok "Package list updated"
-fi
+# ═══════════════════════════════════════════════
+# 2. System packages
+# ═══════════════════════════════════════════════
+section "System packages"
 
-# ─────────────────────────────────────────
-# 3. Dependencies
-# ─────────────────────────────────────────
-section "Installing dependencies"
+if command -v pkg &>/dev/null; then
+    info "Updating package lists..."
+    pkg update -y 2>&1 | tail -1 >/dev/null && ok "Packages updated"
+fi
 
 DEPS_PKG="clang cmake make git wget curl python python-pip binutils libandroid-spawn termux-tools openssl-tool ddgr"
 DEPS_MISSING=""
-
 for pkg in $DEPS_PKG; do
     if command -v "$pkg" &>/dev/null || pkg list-installed 2>/dev/null | grep -qi "^$pkg "; then
-        info "Already installed: $pkg"
+        info "$pkg"
     else
         DEPS_MISSING="$DEPS_MISSING $pkg"
     fi
@@ -119,99 +146,83 @@ done
 if [ -n "$DEPS_MISSING" ]; then
     info "Installing:$DEPS_MISSING"
     pkg install -y $DEPS_MISSING 2>&1 | tail -3
-    ok "System packages installed"
-else
-    ok "All system packages already present"
 fi
+ok "System packages ready"
 
-PIP_DEPS="requests flask"
-PIP_MISSING=""
-for pkg in $PIP_DEPS; do
-    if python3 -c "import $pkg" 2>/dev/null; then
-        info "Already installed: $pkg"
-    else
-        PIP_MISSING="$PIP_MISSING $pkg"
-    fi
+# ═══════════════════════════════════════════════
+# 3. Python packages
+# ═══════════════════════════════════════════════
+section "Python packages"
+
+for pkg in requests flask; do
+    python3 -c "import $pkg" 2>/dev/null && info "$pkg" || {
+        info "Installing $pkg..."
+        pip install $pkg --break-system-packages -q 2>/dev/null || pip install $pkg -q
+    }
 done
-if [ -n "$PIP_MISSING" ]; then
-    pip install $PIP_MISSING --break-system-packages -q 2>&1 || pip install $PIP_MISSING -q 2>&1
-    ok "Python packages installed"
-fi
 
-# Telegram bot (optional — skip if offline mode)
-if python3 -c "import telegram" 2>/dev/null; then
-    info "Already installed: python-telegram-bot"
-else
+python3 -c "import telegram" 2>/dev/null && info "python-telegram-bot" || {
     info "Installing python-telegram-bot..."
-    pip install "python-telegram-bot[job-queue]" --break-system-packages -q 2>&1 || pip install "python-telegram-bot[job-queue]" -q 2>&1
-    ok "python-telegram-bot installed"
-fi
+    pip install "python-telegram-bot[job-queue]" --break-system-packages -q 2>/dev/null || pip install "python-telegram-bot[job-queue]" -q
+}
 
-# numpy — prefer termux pre-compiled binary
 if python3 -c "import numpy" 2>/dev/null; then
-    info "Already installed: numpy"
+    info "numpy"
 else
     if command -v pkg &>/dev/null && pkg install -y python-numpy 2>/dev/null; then
-        ok "numpy installed via pkg (pre-compiled)"
+        ok "numpy (pre-compiled)"
     else
-        pip install numpy --break-system-packages -q 2>&1 || pip install numpy -q 2>&1
-        ok "numpy installed via pip"
+        info "Installing numpy..."
+        pip install numpy --break-system-packages -q 2>/dev/null || pip install numpy -q
     fi
 fi
+ok "Python packages ready"
 
-# ─────────────────────────────────────────
-# 4. Clone / copy NERMANA files
-# ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
+# 4. Clone / copy NERMANA
+# ═══════════════════════════════════════════════
 section "Installing NERMANA files"
 
 if [ -d "$SCRIPT_DIR/.git" ] && git -C "$SCRIPT_DIR" config --get remote.origin.url 2>/dev/null | grep -q "nermana_ai"; then
-    # we are inside the git repo — copy files
-    info "Copying from $SCRIPT_DIR → $NERMANA_DIR"
+    info "Copying from local repo → $NERMANA_DIR"
     for item in "$SCRIPT_DIR"/*; do
         name="$(basename "$item")"
-        [ "$name" = "models" ] && continue
-        [ "$name" = ".git" ] && continue
-        [ "$name" = "install.sh" ] && continue
+        [ "$name" = "models" ] || [ "$name" = ".git" ] || [ "$name" = "install.sh" ] && continue
         cp -r "$item" "$NERMANA_DIR/" 2>/dev/null || true
     done
     for item in "$SCRIPT_DIR"/.[!.]*; do
-        [ -e "$item" ] || continue
-        name="$(basename "$item")"
+        [ -e "$item" ] || continue; name="$(basename "$item")"
         [ "$name" = ".git" ] && continue
         cp -r "$item" "$NERMANA_DIR/" 2>/dev/null || true
     done
     cp "$SCRIPT_DIR/install.sh" "$NERMANA_DIR/install.sh"
-    ok "Files copied from local repo"
+    ok "Copied"
+
 elif [ -d "$NERMANA_DIR/bot" ] && [ -f "$NERMANA_DIR/nermana_ctl.sh" ]; then
-    # already installed — skip clone
-    info "NERMANA already present at $NERMANA_DIR — skipping clone"
+    info "Already installed — skipping clone"
+
 else
-    # standalone install.sh — clone from GitHub
-    info "Cloning from $REPO_URL"
-    info "(This may take a moment depending on your connection.)"
-    # save models/ aside before clone overwrites
+    info "Fetching from GitHub..."
     if [ -d "$NERMANA_DIR/models" ]; then
         mv "$NERMANA_DIR/models" "/tmp/nermana_models_backup"
     fi
     rm -rf "$NERMANA_DIR"
     GIT_OUT=$(git clone --depth=1 "$REPO_URL" "$NERMANA_DIR" 2>&1) && ok "Repository cloned" || {
-        # restore models/ before failing
         [ -d "/tmp/nermana_models_backup" ] && mv "/tmp/nermana_models_backup" "$NERMANA_DIR" 2>/dev/null
         fail "Clone failed:\n$GIT_OUT"
     }
-    # restore preserved models/
     if [ -d "/tmp/nermana_models_backup" ]; then
         rm -rf "$NERMANA_DIR/models"
         mv "/tmp/nermana_models_backup" "$NERMANA_DIR/models"
-        info "Preserved models/ restored"
+        ok "Models restored"
     fi
 fi
 
 mkdir -p "$NERMANA_DIR"/{bot,web,logs,memory/{long_term,short_term,junk,buffer,embeddings},knowledge,modules,state}
 
-# ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
 # 5. Build llama.cpp
-# ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
 section "Building llama.cpp"
 LLAMA_DIR="$HOME/llama.cpp"
 LLAMA_SERVER="$LLAMA_DIR/build/bin/llama-server"
@@ -220,146 +231,170 @@ if [ -f "$LLAMA_SERVER" ]; then
     ok "llama-server already built"
 else
     if [ -d "$LLAMA_DIR" ]; then
-        warn "llama.cpp directory exists but no binary — rebuilding"
+        warn "llama.cpp dir exists — rebuilding"
         rm -rf "$LLAMA_DIR/build"
     else
         info "Cloning llama.cpp..."
-        git clone --depth=1 https://github.com/ggerganov/llama.cpp "$LLAMA_DIR"
+        git clone --depth=1 https://github.com/ggerganov/llama.cpp "$LLAMA_DIR" 2>&1 | tail -2
     fi
     cd "$LLAMA_DIR"
-    info "Configuring cmake..."
-    CMAKE_FLAGS="-B build -DLLAMA_BUILD_SERVER=ON -DLLAMA_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release"
-    cmake $CMAKE_FLAGS 2>&1 || fail "cmake configuration failed"
-    info "Building llama-server (this takes 10-30 minutes on device)..."
-    info "  ↳ Be patient — this only happens once."
+    info "Configuring with cmake..."
+    cmake -B build -DLLAMA_BUILD_SERVER=ON -DLLAMA_BUILD_TESTS=OFF -DCMAKE_BUILD_TYPE=Release 2>&1 || fail "cmake failed"
+    info "Compiling llama-server (10-30 min first time)..."
     cmake --build build --config Release --target llama-server -j2 2>&1 || {
-        warn "Build had warnings; checking binary..."
+        warn "Build warnings — checking binary..."
     }
     if [ -f "$LLAMA_SERVER" ]; then
-        ok "llama-server built successfully"
+        ok "llama-server built ✓"
     else
-        fail "llama-server build failed. See $LLAMA_DIR/build/CMakeFiles/CMakeOutput.log"
+        fail "Build failed. Logs: $LLAMA_DIR/build/CMakeFiles/CMakeOutput.log"
     fi
 fi
 
-# ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
 # 6. Model selection
-# ─────────────────────────────────────────
-section "Model selection"
+# ═══════════════════════════════════════════════
+section "AI Model"
+
 MODEL_DIR="$NERMANA_DIR/models"
 mkdir -p "$MODEL_DIR"
 
-EXISTING_MODEL_PATH=""
-ACTIVE_MODEL=""
-if [ -f "$CONFIG_FILE" ]; then
-    EXISTING_MODEL_PATH=$(grep "^LLAMA_MODEL_PATH=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
-    ACTIVE_MODEL=$(grep "^ACTIVE_MODEL=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2-)
-fi
+# Model presets
+declare -A MODELS
+MODELS[1]="Phi-3.5-mini|phi-3.5-mini-instruct-Q4_K_M.gguf|https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf"
+MODELS[2]="Qwen2.5-3B|qwen2.5-3b-instruct-Q4_K_M.gguf|https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf"
+MODELS[3]="SmolLM2-1.7B|smollm2-1.7b-instruct-Q4_K_M.gguf|https://huggingface.co/bartowski/SmolLM2-1.7B-Instruct-GGUF/resolve/main/SmolLM2-1.7B-Instruct-Q4_K_M.gguf"
 
-if [ -n "$EXISTING_MODEL_PATH" ] && [ -f "$EXISTING_MODEL_PATH" ]; then
-    MODEL_PATH="$EXISTING_MODEL_PATH"
-    ok "Existing model: $(basename "$MODEL_PATH")"
-    prompt_yn "Use this model?" || EXISTING_MODEL_PATH=""
-fi
-
-if [ -z "$EXISTING_MODEL_PATH" ] || [ ! -f "$EXISTING_MODEL_PATH" ]; then
-    echo ""
-    echo "  ${BOLD}Select a GGUF model:${RESET}"
-    echo "    1) Phi-3.5-mini-instruct Q4_K_M (2.5GB) — best reasoning"
-    echo "    2) Qwen2.5-3B-Instruct Q4_K_M   (2.0GB) — fast & strong"
-    echo "    3) SmolLM2-1.7B Q4_K_M           (1.0GB) — fastest, weak devices"
-    echo "    4) Skip download (use existing model file)"
-    echo ""
-    read -p "  Choice [1-4]: " ch
-    case $ch in
-        2) MODEL_FILE="qwen2.5-3b-instruct-Q4_K_M.gguf"
-           MODEL_URL="https://huggingface.co/bartowski/Qwen2.5-3B-Instruct-GGUF/resolve/main/Qwen2.5-3B-Instruct-Q4_K_M.gguf"
-           ACTIVE_MODEL="Qwen2.5-3B" ;;
-        3) MODEL_FILE="smollm2-1.7b-instruct-Q4_K_M.gguf"
-           MODEL_URL="https://huggingface.co/bartowski/SmolLM2-1.7B-Instruct-GGUF/resolve/main/SmolLM2-1.7B-Instruct-Q4_K_M.gguf"
-           ACTIVE_MODEL="SmolLM2-1.7B" ;;
-        4) MODEL_PATH=""; ACTIVE_MODEL="custom" ;;
-        *) MODEL_FILE="phi-3.5-mini-instruct-Q4_K_M.gguf"
-           MODEL_URL="https://huggingface.co/bartowski/Phi-3.5-mini-instruct-GGUF/resolve/main/Phi-3.5-mini-instruct-Q4_K_M.gguf"
-           ACTIVE_MODEL="Phi-3.5-mini" ;;
-    esac
-    if [ -n "$MODEL_FILE" ]; then
-        MODEL_PATH="$MODEL_DIR/$MODEL_FILE"
-        if [ ! -f "$MODEL_PATH" ]; then
-            info "Downloading $MODEL_FILE (~$( [ "$ch" = "3" ] && echo "1" || echo "2" )GB)..."
-            wget -c --show-progress "$MODEL_URL" -O "$MODEL_PATH" || fail "Download failed"
-            ok "$MODEL_FILE downloaded"
+# Show menu with download status
+echo ""
+echo -e "  ${BOLD}Available models:${RESET}"
+for k in 1 2 3; do
+    IFS='|' read -r name file url <<< "${MODELS[$k]}"
+    path="$MODEL_DIR/$file"
+    status=""
+    if [ -f "$path" ]; then
+        sz=$(stat -c%s "$path" 2>/dev/null || stat -f%z "$path" 2>/dev/null || echo 0)
+        if [ "$sz" -gt 1000000 ]; then
+            status=" ${GREEN}✔${RESET} ${DIM}$(( sz / 1048576 )) MB${RESET}"
         else
-            ok "$MODEL_FILE already exists"
+            status=" ${YELLOW}⚠${RESET} ${DIM}partial${RESET}"
         fi
+    else
+        status=" ${DIM}— not downloaded${RESET}"
+    fi
+    echo -e "    ${CYAN}$k${RESET}) ${BOLD}$name${RESET} $status"
+done
+echo -e "    ${CYAN}s${RESET}) ${BOLD}Skip${RESET} — keep existing model(s)"
+echo ""
+
+# Determine default
+DEFAULT_CH=1
+for k in 1 2 3; do
+    IFS='|' read -r name file url <<< "${MODELS[$k]}"
+    [ -f "$MODEL_DIR/$file" ] && DEFAULT_CH="$k"
+done
+
+if [ "$_QUICK_MODE" = true ]; then
+    ch="$DEFAULT_CH"
+    info "Quick mode — using default model"
+else
+    read -p "  ${CYAN}?${RESET} Choose a model to download [1-3, s]: " ch
+    ch="${ch:-$DEFAULT_CH}"
+fi
+
+if [ "$ch" != "s" ] && [ "$ch" != "S" ]; then
+    IFS='|' read -r ACTIVE_MODEL MODEL_FILE MODEL_URL <<< "${MODELS[$ch]:-${MODELS[1]}}"
+    MODEL_PATH="$MODEL_DIR/$MODEL_FILE"
+
+    if [ -f "$MODEL_PATH" ] && [ "$(stat -c%s "$MODEL_PATH" 2>/dev/null || stat -f%z "$MODEL_PATH" 2>/dev/null || echo 0)" -gt 1000000 ]; then
+        ok "${BOLD}$ACTIVE_MODEL${RESET} already downloaded ($(( $(stat -c%s "$MODEL_PATH" 2>/dev/null || stat -f%z "$MODEL_PATH" 2>/dev/null) / 1048576 )) MB) — skipping"
+    else
+        info "Downloading ${BOLD}$ACTIVE_MODEL${RESET}..."
+        wget -c --show-progress "$MODEL_URL" -O "$MODEL_PATH" 2>&1 | tail -3 || fail "Download failed"
+        sz=$(stat -c%s "$MODEL_PATH" 2>/dev/null || stat -f%z "$MODEL_PATH" 2>/dev/null || echo 0)
+        ok "${BOLD}$ACTIVE_MODEL${RESET} — $(( sz / 1048576 )) MB"
+    fi
+else
+    MODEL_PATH=""
+    ACTIVE_MODEL="custom"
+    info "Skipping model download"
+    # Try to find any existing GGUF
+    EXISTING=$(ls "$MODEL_DIR"/*.gguf 2>/dev/null | head -1)
+    if [ -n "$EXISTING" ]; then
+        MODEL_PATH="$EXISTING"
+        ACTIVE_MODEL=$(basename "$EXISTING" .gguf)
+        ok "Using existing: $(basename "$EXISTING")"
     fi
 fi
 
-# ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
 # 7. Embedding model
-# ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
 section "Embedding model"
-EMBED_DIR="$NERMANA_DIR/models/embeddings"
-mkdir -p "$EMBED_DIR"
 EMBED_FILE="nomic-embed-text-v1.5.Q4_K_M.gguf"
-EMBED_PATH="$EMBED_DIR/$EMBED_FILE"
+EMBED_PATH="$NERMANA_DIR/models/embeddings/$EMBED_FILE"
 
-if [ ! -f "$EMBED_PATH" ]; then
-    info "Downloading embedding model (50 MB)..."
-    wget -c --show-progress "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q4_K_M.gguf" -O "$EMBED_PATH" || warn "Embedding download failed — will use keyword fallback"
-fi
-if [ -f "$EMBED_PATH" ]; then
-    ok "Embedding model ready"
-fi
+download_file \
+    "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q4_K_M.gguf" \
+    "$EMBED_PATH" \
+    "nomic-embed-text (neural memory)" || warn "Embedding model unavailable — using keyword fallback"
 
-# ─────────────────────────────────────────
-# 8. Telegram token / offline mode
-# ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
+# 8. Telegram / offline mode
+# ═══════════════════════════════════════════════
 section "Telegram setup"
 TELEGRAM_TOKEN=""
 
-echo "  Choose mode:"
-echo "    1) Telegram bot — requires token from @BotFather"
-echo "    2) Offline mode — no Telegram, use web UI + direct LLM"
-echo ""
-read -p "  Choice [1-2]: " mode_ch
-
-if [ "$mode_ch" = "2" ]; then
-    info "Offline mode selected — Telegram bot will not start"
-    info "Use: nermana web  →  http://127.0.0.1:5000"
-    TELEGRAM_TOKEN=""
-else
-    # check existing token
+if [ "$_QUICK_MODE" = true ]; then
+    # in quick mode, try existing token or go offline
     if [ -f "$CONFIG_FILE" ]; then
         EXISTING_TOKEN=$(grep "^TELEGRAM_TOKEN=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
         if [ -n "$EXISTING_TOKEN" ]; then
-            if curl -s "https://api.telegram.org/bot${EXISTING_TOKEN}/getMe" | grep -q '"ok":true'; then
+            TELEGRAM_TOKEN="$EXISTING_TOKEN"
+            ok "Using existing token"
+        fi
+    fi
+    [ -z "$TELEGRAM_TOKEN" ] && info "Quick mode — offline (no Telegram)"
+else
+    echo ""
+    echo -e "  ${BOLD}Choose mode:${RESET}"
+    echo -e "    ${CYAN}1${RESET}) Telegram bot — requires token from @BotFather"
+    echo -e "    ${CYAN}2${RESET}) Offline mode — web UI only"
+    echo ""
+    read -p "  ${CYAN}?${RESET} Mode [1-2]: " mode_ch
+
+    if [ "$mode_ch" != "2" ]; then
+        if [ -f "$CONFIG_FILE" ]; then
+            EXISTING_TOKEN=$(grep "^TELEGRAM_TOKEN=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]')
+            if [ -n "$EXISTING_TOKEN" ] && curl -s "https://api.telegram.org/bot${EXISTING_TOKEN}/getMe" | grep -q '"ok":true'; then
                 TELEGRAM_TOKEN="$EXISTING_TOKEN"
-                ok "Existing token valid"
+                ok "Token valid"
+            fi
+        fi
+        if [ -z "$TELEGRAM_TOKEN" ]; then
+            read -p "  ${CYAN}?${RESET} Paste your Telegram Bot Token: " TELEGRAM_TOKEN
+            if [ -n "$TELEGRAM_TOKEN" ]; then
+                info "Validating..."
+                curl -s "https://api.telegram.org/bot${TELEGRAM_TOKEN}/getMe" | grep -q '"ok":true' \
+                    && ok "Token validated" \
+                    || warn "Validation failed — you can edit .config later"
             fi
         fi
     fi
-    if [ -z "$TELEGRAM_TOKEN" ]; then
-        read -p "Paste your Telegram Bot Token (from @BotFather): " TELEGRAM_TOKEN
-        if [ -n "$TELEGRAM_TOKEN" ]; then
-            info "Validating token..."
-            if curl -s "https://api.telegram.org/bot${TELEGRAM_TOKEN}/getMe" | grep -q '"ok":true'; then
-                ok "Token validated"
-            else
-                warn "Token validation failed — check and try again later"
-                warn "You can edit $CONFIG_FILE later"
-            fi
-        else
-            warn "No token provided — bot will not start"
-            warn "Run: nermana web  →  http://127.0.0.1:5000"
-        fi
-    fi
+    [ -z "$TELEGRAM_TOKEN" ] && info "Offline mode — use web UI at http://127.0.0.1:5000"
 fi
 
-# ─────────────────────────────────────────
-# 9. Write configuration
-# ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
+# 9. Write config
+# ═══════════════════════════════════════════════
 section "Configuration"
+
+# Determine context size based on model
+case "$ACTIVE_MODEL" in
+    *Phi*) CFG_CTX=4096 ;;
+    *Qwen*) CFG_CTX=8192 ;;
+    *) CFG_CTX=4096 ;;
+esac
 
 cat > "$CONFIG_FILE" << CFGEOF
 TELEGRAM_TOKEN=$TELEGRAM_TOKEN
@@ -368,7 +403,7 @@ LLAMA_HOST=127.0.0.1
 LLAMA_PORT=8080
 LLAMA_EMBED_PORT=8081
 LLAMA_THREADS=6
-LLAMA_CONTEXT=4096
+LLAMA_CONTEXT=$CFG_CTX
 LLAMA_BATCH=256
 ACTIVE_MODEL="$ACTIVE_MODEL"
 LLAMA_MODEL_PATH=$MODEL_PATH
@@ -389,75 +424,64 @@ IDLE_SLEEP_MINUTES=15
 WAKE_TIMEOUT_SECONDS=150
 SEMANTIC_MEMORY_ENABLED=true
 CFGEOF
-ok "Config written to $CONFIG_FILE"
+ok "Config written"
 
-# ─────────────────────────────────────────
-# 10. Make ctl executable + symlink
-# ─────────────────────────────────────────
+# ═══════════════════════════════════════════════
+# 10. Final setup
+# ═══════════════════════════════════════════════
 section "Final setup"
 chmod +x "$NERMANA_DIR/nermana_ctl.sh"
 
-# add to PATH via ~/.bashrc if not already
 if ! grep -q "nermana_ctl" "$HOME/.bashrc" 2>/dev/null; then
     echo 'export PATH="$HOME/nermana:$PATH"' >> "$HOME/.bashrc"
     echo 'alias nermana="$HOME/nermana/nermana_ctl.sh"' >> "$HOME/.bashrc"
-    ok "Added nermana alias to ~/.bashrc"
+    ok "Added nermana command to ~/.bashrc"
 else
-    ok "nermana alias already in ~/.bashrc"
+    ok "nermana command already in ~/.bashrc"
 fi
 source "$HOME/.bashrc" 2>/dev/null || true
 
-# install completion reminder
 ELAPSED=$(( $(date +%s) - START_EPOCH ))
 
-section "Installation complete (${ELAPSED}s)"
+section "Install complete (${ELAPSED}s)"
 echo ""
 echo -e "  ${BOLD}NERMANA v4.7.2${RESET} installed to ${CYAN}$NERMANA_DIR${RESET}"
 echo -e "  ${DIM}Repository: $REPO_URL${RESET}"
 echo ""
 echo -e "  ${BOLD}Quick start:${RESET}"
 echo ""
-echo -e "  ${YELLOW}IMPORTANT:${RESET} Run this first to activate the 'nermana' command:"
-echo -e "    ${BOLD}source ~/.bashrc${RESET}"
+echo -e "  ${YELLOW}➜${RESET} Run this first (one time only):"
+echo -e "      ${BOLD}source ~/.bashrc${RESET}"
 echo ""
-echo -e "  Then:"
+echo -e "  ${YELLOW}➜${RESET} Then start:"
 if [ -n "$TELEGRAM_TOKEN" ]; then
-    echo -e "    ${CYAN}nermana start${RESET}     Launch LLM servers + Telegram bot"
+    echo -e "      ${CYAN}nermana start${RESET}     LLM servers + Telegram bot"
 fi
-echo -e "    ${CYAN}nermana web${RESET}       Start web dashboard at http://127.0.0.1:5000"
-echo -e "    ${CYAN}nermana status${RESET}    Check all services"
-echo -e "    ${CYAN}nermana stop${RESET}      Stop everything"
-echo -e "    ${CYAN}nermana reset${RESET}     Clear all memories"
+echo -e "      ${CYAN}nermana web${RESET}       Web dashboard → http://127.0.0.1:5000"
+echo -e "      ${CYAN}nermana status${RESET}    Check services"
+echo -e "      ${CYAN}nermana stop${RESET}      Stop everything"
+echo -e "      ${CYAN}nermana reset${RESET}     Clear memories"
 echo ""
-echo -e "  Or use the full path directly:"
-echo -e "    ${DIM}bash ~/nermana/nermana_ctl.sh start${RESET}"
-echo ""
-echo -e "  ${DIM}Edit $CONFIG_FILE to tune settings.${RESET}"
+echo -e "  ${DIM}Or without alias: bash ~/nermana/nermana_ctl.sh start${RESET}"
 echo ""
 
-# prompt to start now
+# Prompt to start now
 if [ "$_QUICK_MODE" = false ]; then
-    echo ""
     if prompt_yn "Start NERMANA now?"; then
         echo ""
-        # Source the alias and start
-        if [ -f "$HOME/.bashrc" ]; then
-            source "$HOME/.bashrc" 2>/dev/null || true
-        fi
         if command -v nermana &>/dev/null; then
-            nermana start || warn "Start had issues — check 'nermana status'"
+            nermana start
         else
-            bash "$NERMANA_DIR/nermana_ctl.sh" start || warn "Start had issues"
+            bash "$NERMANA_DIR/nermana_ctl.sh" start
         fi
         echo ""
         if [ -n "$TELEGRAM_TOKEN" ]; then
-            ok "NERMANA bot + servers launching. Check: bash ~/nermana/nermana_ctl.sh status"
+            ok "Bot + servers launching"
         else
-            ok "LLM servers launching. Open http://127.0.0.1:5000 in a browser."
+            ok "LLM servers starting — open http://127.0.0.1:5000"
         fi
     else
-        echo ""
-        info "Run later with: source ~/.bashrc && nermana start"
+        info "Run later: source ~/.bashrc && nermana start"
     fi
 fi
 echo ""

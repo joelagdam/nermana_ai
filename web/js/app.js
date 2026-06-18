@@ -73,7 +73,7 @@ function toggleCollapse(id) {
     if (id === 'health' && !$('diagContent').dataset.loaded) loadDiagnostics();
     if (id === 'memory') { loadMemStats(); loadMood(); loadReminders(); }
     if (id === 'settings') loadSettings();
-    if (id === 'activity' && !window._pipeInit) initPipeline();
+
   }
 }
 
@@ -88,7 +88,7 @@ function showPage(id, btn) {
     dashboard: () => { loadDashboard(); loadVersion(); },
     models: () => loadModels(),
     files: () => fmLoad(),
-    bot: () => loadBotPage(),
+    pipeline: () => initPipeline(),
   };
   if (actions[id]) actions[id]();
 }
@@ -97,9 +97,8 @@ function showPage(id, btn) {
 async function pollStatus() {
   try {
     const s = await api('/api/status');
-    const dl = $('dot-llm'), db = $('dot-bot');
+    const dl = $('dot-llm');
     if (dl) dl.className = 'dot ' + (s.llm_server ? 'on' : s.sleeping ? 'warn' : 'off');
-    if (db) db.className = 'dot ' + (s.bot ? 'on' : 'off');
   } catch (e) { /* ignore */ }
 }
 pollStatus();
@@ -225,9 +224,12 @@ function initPipeline() {
         + '<div class="pipe-data">' + esc(ds) + '</div>';
       const pl = _pipe();
       if (pl) {
-        pl.prepend(row);
-        while (pl.children.length > 100) pl.lastChild.remove();
         if (pl.textContent === 'Waiting for events…' || pl.querySelector('.pipe-empty')) pl.innerHTML = '';
+        pl.appendChild(row);
+        while (pl.children.length > 100) pl.firstChild.remove();
+        if (_pipeAuto && $('page-pipeline')?.classList.contains('active')) {
+          pl.scrollTop = pl.scrollHeight;
+        }
       }
     } catch (e) { /* ignore */ }
   };
@@ -253,9 +255,8 @@ function setPipeFilter(f, btn) {
 async function loadDashboard() {
   try {
     const d = await api('/api/dashboard');
-    const llm = $('dash-llm'), bot = $('dash-bot'), model = $('dash-model');
+    const llm = $('dash-llm'), model = $('dash-model');
     if (llm) { llm.textContent = d.llm ? 'ON' : 'OFF'; llm.style.color = d.llm ? 'var(--accent3)' : 'var(--accent4)'; }
-    if (bot) { bot.textContent = d.bot ? 'ON' : 'OFF'; bot.style.color = d.bot ? 'var(--accent)' : 'var(--accent4)'; }
     if (model) model.textContent = d.active_model || '—';
     const m = d.memory || {};
     const setStat = (id, val, cls) => {
@@ -650,10 +651,10 @@ async function saveSettings() {
     search_results: parseInt(getVal('s-sr')),
     semantic_enabled: ($('t-semantic') || {}).classList.contains('on'),
   };
-  showModal('Save Settings', 'Apply changes and restart the bot?', 'Save & Restart', async () => {
+  showModal('Save Settings', 'Apply changes and restart the server?', 'Save & Restart', async () => {
     try {
       await api('/api/settings', { method: 'POST', body: JSON.stringify(data) });
-      toast('Settings saved — bot restarting');
+      toast('Settings saved — server restarting');
     } catch (e) { toast('Error: ' + e.message, 'err'); }
   });
 }
@@ -663,83 +664,34 @@ async function botCtl(action) {
     const r = await api('/api/bot_control', { method: 'POST', body: JSON.stringify({ action }) });
     toast(action + ': ' + (r.output ? r.output.slice(-60) : 'done'));
     setTimeout(pollStatus, 2000);
-    loadBotPage();
   } catch (e) { toast('Error', 'err'); }
 }
 
 /* ═════════════════════════════════════════════════════════
-   BOT PAGE
+   PIPELINE PAGE HELPERS
    ═════════════════════════════════════════════════════════ */
-async function loadBotPage() {
-  try {
-    const s = await api('/api/status');
-    const statusEl = $('bot-status-text');
-    const modeEl = $('bot-mode-text');
-    if (statusEl) { statusEl.textContent = s.bot ? 'RUNNING' : 'STOPPED'; statusEl.style.color = s.bot ? 'var(--accent3)' : 'var(--accent4)'; }
-    if (modeEl) { modeEl.textContent = s.llm_server ? 'Online' : 'Offline'; modeEl.style.color = s.llm_server ? 'var(--accent3)' : 'var(--text2)'; }
-  } catch (e) { /* ignore */ }
-  try {
-    const cfg = await api('/api/settings');
-    if (cfg.telegram_token) {
-      $('bot-token').value = cfg.telegram_token;
-      toggleSet('t-telegram', true);
-    }
-  } catch (e) { /* ignore */ }
+let _pipeAuto = true;
+function togglePipeAuto() {
+  _pipeAuto = !_pipeAuto;
+  const el = $('pipeAutoToggle');
+  if (el) el.textContent = _pipeAuto ? '⏸ Pause' : '▶ Resume';
 }
-
-async function saveTelegramToken() {
-  const token = $('bot-token').value.trim();
-  if (!token) { toast('Enter a token', 'err'); return; }
-  try {
-    await api('/api/settings', { method: 'POST', body: JSON.stringify({ telegram_token: token }) });
-    toast('Token saved — restart bot to apply');
-  } catch (e) { toast(e.message, 'err'); }
+function pipeScrollToBottom() {
+  const pl = $('pipeLog');
+  if (!pl) return;
+  pl.scrollTop = pl.scrollHeight;
+  const btn = $('pipeScrollBtn');
+  if (btn) btn.style.display = 'none';
 }
-
-async function testTelegramToken() {
-  const token = $('bot-token').value.trim();
-  if (!token) { toast('Enter a token first', 'err'); return; }
-  try {
-    const r = await fetch('https://api.telegram.org/bot' + token + '/getMe').then((r) => r.json());
-    if (r.ok) {
-      const username = r.result ? r.result.username || '?' : '?';
-      toast('✓ Connected as @' + username + ' — ID: ' + (r.result ? r.result.id : '?'));
-    } else {
-      toast('✗ Invalid: ' + (r.description || 'unknown error'), 'err');
-    }
-  } catch (e) {
-    toast('Connection error: ' + e.message, 'err');
-  }
+function clearPipeLog() {
+  const pl = $('pipeLog');
+  if (pl) pl.innerHTML = '<div class="pipe-empty">Waiting for events…</div>';
 }
-
-let _tokenVis = false;
-function toggleTokenVis() {
-  _tokenVis = !_tokenVis;
-  const el = $('bot-token');
-  if (el) el.type = _tokenVis ? 'text' : 'password';
-}
-
-let _logVisible = false;
-async function toggleLog() {
-  const area = $('botLog');
-  if (!area) return;
-  _logVisible = !_logVisible;
-  area.style.display = _logVisible ? 'block' : 'none';
-  const btn = $('logToggleBtn');
-  if (btn) btn.textContent = _logVisible ? 'Hide Log' : 'Show Log';
-  if (!_logVisible) return;
-  try {
-    const r = await api('/api/bot_log');
-    area.innerHTML = (r.lines || []).map((l) => {
-      let cls = '';
-      if (l.includes('ERROR') || l.includes('error')) cls = 'err';
-      else if (l.includes('WARNING')) cls = 'warn';
-      else if (l.includes('INFO')) cls = 'info';
-      return '<span class="' + cls + '">' + esc(l) + '</span>';
-    }).join('\n') || '(empty)';
-    area.scrollTop = area.scrollHeight;
-  } catch (e) { area.textContent = 'Error loading log'; }
-}
+$('pipeLog')?.addEventListener('scroll', function() {
+  const atBottom = this.scrollHeight - this.scrollTop - this.clientHeight < 40;
+  const btn = $('pipeScrollBtn');
+  if (btn) btn.style.display = _pipeAuto && atBottom ? 'none' : 'flex';
+});
 
 /* ═════════════════════════════════════════════════════════
    VERSION & UPDATES

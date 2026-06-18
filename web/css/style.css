@@ -649,10 +649,8 @@ a:hover { text-decoration: underline; }
 /* ═══ Chat ═══ */
 #page-chat {
   padding: 0;
-  display: flex;
   flex-direction: column;
 }
-
 #page-chat.active { display: flex; }
 
 .chat-hdr {
@@ -882,6 +880,62 @@ a:hover { text-decoration: underline; }
 .pipe-stage.MEMORY_QUERY { color: var(--cyan); }
 .pipe-data { color: var(--text2); font-size: 10px; word-break: break-all; flex: 1; }
 .pipe-empty { color: var(--dim); font-size: 12px; padding: 20px; text-align: center; }
+
+/* ═══ Pipeline Page ═══ */
+#page-pipeline {
+  flex-direction: column;
+  padding: 8px 10px 4px;
+}
+#page-pipeline.active { display: flex; }
+.pipe-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+.pipe-hdr-l {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.pipe-hdr-r {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pipe-auto {
+  font-size: 11px;
+  color: var(--accent);
+  cursor: pointer;
+  user-select: none;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+}
+.page-pipe-log {
+  flex: 1;
+  max-height: none;
+  min-height: 0;
+  overflow-y: auto;
+}
+.pipe-scroll-btn {
+  position: fixed;
+  bottom: calc(var(--tab-h) + var(--safe-b) + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #000;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 18px;
+  border-radius: 99px;
+  cursor: pointer;
+  z-index: 50;
+  box-shadow: 0 2px 12px rgba(0,200,255,.3);
+  transition: opacity .15s var(--ease);
+}
 
 /* ═══ Diagnostics ═══ */
 .diag-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }

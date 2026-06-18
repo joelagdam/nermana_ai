@@ -66,37 +66,56 @@ Telegram ──→ nermana_bot.py ──→ nermana_primer.py (build context)
 ## Setup
 
 ### Requirements
-- Termux (Android) or any Linux environment
-- [llama.cpp](https://github.com/ggerganov/llama.cpp) compiled with `llama-server`
-- Python 3.10+ with `pip install python-telegram-bot[job-queue] flask requests`
+- **Termux** (Android) from F-Droid (not Play Store)
+- Storage access: `termux-setup-storage`
+- 5 GB+ free space (models + build)
+- Internet connection for first install
 
-### Installation
+### One-command install
 ```bash
-git clone https://github.com/<your-org>/nermana ~/nermana
+bash <(wget -qO- https://raw.githubusercontent.com/joelagdam/nermana_ai/main/install.sh)
+```
+
+The installer will:
+1. Check compatibility (Termux, ARM arch, disk space)
+2. Remove old nermana files (preserves `models/`)
+3. Install packages: `clang cmake make git wget curl python python-pip binutils libandroid-spawn openssl-tool ddgr`
+4. Install Python libs: `requests flask python-telegram-bot numpy`
+5. Build `llama-server` from source (with `LLAMA_BUILD_SERVER=ON`)
+6. Prompt for a GGUF model to download (Phi-3.5-mini / Qwen2.5-3B / SmolLM2-1.7B)
+7. Download `nomic-embed-text` embedding model (50 MB)
+8. Ask for Telegram bot token, or select offline mode (web UI only)
+9. Write `.config` with all paths and settings
+
+### Manual install
+```bash
+git clone https://github.com/joelagdam/nermana_ai.git ~/nermana
 cd ~/nermana
+./install.sh
 ```
 
 ### Configuration
-Edit `.config`:
+Edit `~/.config` after install:
 ```
 TELEGRAM_TOKEN=           # Bot token from @BotFather
 ENGINE=llamacpp           # LLM backend
 LLAMA_HOST=127.0.0.1
-LLAMA_PORT=8080           # Main generation server
-LLAMA_EMBED_PORT=8081     # Embedding server
-LLAMA_MODEL_PATH=         # Path to GGUF model
-EMBEDDING_MODEL_PATH=     # Path to embedding GGUF (e.g. nomic-embed-text)
+LLAMA_PORT=8080           # Main generation server (port 8080)
+LLAMA_EMBED_PORT=8081     # Embedding server (port 8081)
+LLAMA_MODEL_PATH=         # Path to GGUF model file
+EMBEDDING_MODEL_PATH=     # Path to embedding GGUF (nomic-embed-text)
 ACTIVE_MODEL=SmolLM2-1.7B
 ```
 
 ### Run
 ```bash
-nermana start       # Start LLM servers + bot
-nermana web         # Start web dashboard (port 5000)
+nermana start       # Launch LLM servers + Telegram bot
+nermana web         # Start web dashboard at http://127.0.0.1:5000
 nermana stop        # Stop everything
 nermana status      # Health check
 nermana reset       # Clear all memories
-nermana patch <module> <source>   # Hot-replace any module
+nermana modules     # Show patchable module list
+nermana patch <module> <file>   # Hot-replace any module
 ```
 
 ## Modules List

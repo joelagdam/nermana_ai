@@ -302,8 +302,47 @@ a{color:var(--accent);text-decoration:none}
   <!-- ── Pages ────────────────── -->
   <div class="pages">
 
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="grid-2">
+        <div class="card" style="text-align:center;padding:20px 14px">
+          <div style="font-size:36px;font-weight:800;font-family:var(--mono);color:var(--accent3)" id="dash-llm">—</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">LLM Server</div>
+        </div>
+        <div class="card" style="text-align:center;padding:20px 14px">
+          <div style="font-size:36px;font-weight:800;font-family:var(--mono);color:var(--accent)" id="dash-bot">—</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">Bot Status</div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="stat-box"><div id="dash-lt" class="stat-num lt">—</div><div class="stat-lbl">Long-term</div></div>
+        <div class="stat-box"><div id="dash-st" class="stat-num st">—</div><div class="stat-lbl">Short-term</div></div>
+        <div class="stat-box"><div id="dash-buf" class="stat-num buf">—</div><div class="stat-lbl">Buffer</div></div>
+        <div class="stat-box"><div id="dash-junk" class="stat-num jk">—</div><div class="stat-lbl">Junk</div></div>
+      </div>
+      <div class="card" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center">
+        <button class="btn btn-sm btn-primary" onclick="botCtl('start')">▶ Start Bot</button>
+        <button class="btn btn-sm btn-danger" onclick="botCtl('stop')">⏹ Stop Bot</button>
+        <button class="btn btn-sm" onclick="botCtl('restart')">↻ Restart</button>
+        <button class="btn btn-sm" onclick="botCtl('start-server')">🖥 Start LLM</button>
+        <button class="btn btn-sm btn-danger" onclick="botCtl('stop-server')">⏹ Stop LLM</button>
+      </div>
+      <div class="card">
+        <div class="card-label">📂 Files Overview</div>
+        <div class="flex-w" style="font-size:13px;color:var(--text2)">
+          <span id="dash-files">—</span> files across <span id="dash-dirs">—</span> directories
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">⚡ Recent Activity</div>
+        <div class="pipe-log" id="dash-events" style="max-height:200px">
+          <div class="pipe-empty">Loading…</div>
+        </div>
+      </div>
+    </div>
+
     <!-- CHAT -->
-    <div class="page active" id="page-chat">
+    <div class="page" id="page-chat">
       <div class="chat-hdr">
         <span class="chat-hdr-l"><span id="chatStatus">ready</span></span>
         <span class="chat-hdr-r">
@@ -433,18 +472,34 @@ a{color:var(--accent);text-decoration:none}
     <!-- FILES -->
     <div class="page" id="page-files">
       <div class="flex-w mb-8">
-        <button class="btn btn-sm" onclick="fmRoot('knowledge')">📚 Knowledge</button>
-        <button class="btn btn-sm" onclick="fmRoot('memory')">🧠 Memory</button>
         <button class="btn btn-sm btn-ghost" onclick="fmUp()">⬆ Up</button>
+        <button class="btn btn-sm btn-ghost" onclick="fmGoHome()">🏠 Root</button>
+        <span style="flex:1"></span>
+        <button class="btn btn-sm" onclick="fmNewFile()">📄+ File</button>
+        <button class="btn btn-sm" onclick="fmNewDir()">📁+ Dir</button>
+        <button class="btn btn-sm" onclick="fmUploadToggle()">📤 Upload</button>
       </div>
-      <div class="fm-bread mono" id="fmPath">knowledge/</div>
+      <div class="fm-bread mono" id="fmPath" style="cursor:pointer">/</div>
+      <div id="fmToolbar" style="display:none;margin-bottom:6px" class="btn-group"></div>
       <div id="fmList"><div class="empty-state"><div class="es-title">Loading…</div></div></div>
       <div class="fm-editor" id="fmEditor">
+        <div class="flex" style="align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="mono" style="font-size:12px;color:var(--text2)" id="fmEditPath"></span>
+          <button class="btn btn-ghost btn-sm" onclick="fmRefresh()">↻</button>
+        </div>
         <textarea class="fm-textarea" id="fmEditArea" spellcheck="false"></textarea>
-        <div class="fm-actions">
-          <button class="btn btn-primary btn-sm" onclick="fmSave()">Save</button>
+        <div class="fm-actions" style="margin-top:8px">
+          <button class="btn btn-primary btn-sm" onclick="fmSave()">💾 Save</button>
           <button class="btn btn-sm" onclick="fmCancel()">Cancel</button>
-          <button class="btn btn-danger btn-sm" onclick="fmDelete()">Delete</button>
+          <button class="btn btn-danger btn-sm" onclick="fmDelete()">🗑 Delete</button>
+          <button class="btn btn-sm" onclick="fmRename()">✏ Rename</button>
+        </div>
+      </div>
+      <div class="fm-editor" id="fmUpload" style="margin-top:8px">
+        <div style="border:2px dashed var(--border2);border-radius:var(--radius-sm);padding:24px;text-align:center;color:var(--dim)">
+          <input type="file" id="fmUploadInput" style="display:none" onchange="fmUploadFile(this)">
+          <button class="btn btn-sm" onclick="$_('fmUploadInput').click()">📤 Choose file</button>
+          <span class="dim" style="font-size:12px;margin-left:6px">or tap to browse</span>
         </div>
       </div>
     </div>
@@ -453,7 +508,10 @@ a{color:var(--accent);text-decoration:none}
 
   <!-- ── Tab bar ──────────────── -->
   <div class="tabbar">
-    <button class="tab active" id="tab-chat" onclick="showPage('chat',this)">
+    <button class="tab active" id="tab-dashboard" onclick="showPage('dashboard',this)">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home
+    </button>
+    <button class="tab" id="tab-chat" onclick="showPage('chat',this)">
       <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Chat
     </button>
     <button class="tab" id="tab-pipeline" onclick="showPage('pipeline',this)">
@@ -511,7 +569,8 @@ function showPage(id,btn){
     diag:()=>{loadDiagnostics()},
     models:()=>{loadModels()},
     settings:()=>{loadSettings()},
-    files:()=>{fmRoot('knowledge')},
+    dashboard:()=>{loadDashboard()},
+    files:()=>{fmGoHome()},
     pipeline:()=>{if(!_pipeInit)initPipeline()}
   }[id];
   if(f)f();
@@ -1008,73 +1067,207 @@ async function toggleLog(){
 }
 
 // ═════════════════════════════════════════════════════════
-// FILES
+// DASHBOARD
 // ═════════════════════════════════════════════════════════
-let _fmRoot='knowledge',_fmPath='',_fmFile='';
-
-async function fmRoot(r){_fmRoot=r;_fmPath='';await fmLoad();}
-async function fmUp(){
-  if(_fmPath){const p=_fmPath.split('/');p.pop();_fmPath=p.join('/');}
-  await fmLoad();
-}
-async function fmLoad(){
-  $_('fmPath').textContent=_fmRoot+'/'+_fmPath;
-  $_('fmEditor').classList.remove('open');
+async function loadDashboard(){
   try{
-    const r=await api('/api/files?root='+_fmRoot+'&path='+encodeURIComponent(_fmPath));
-    if(r.is_dir){
-      let h='';
-      for(const e of r.entries||[]){
-        h+=`<div class="fm-entry" onclick="fmOpen('${esc(e.name)}',${e.is_dir})">
-          <div class="fe-icon">${e.is_dir?'📁':'📄'}</div>
-          <div class="fe-name">${esc(e.name)}</div>
-          ${e.size!=null?'<div class="fe-size">'+fmSize(e.size)+'</div>':''}
-        </div>`;
-      }
-      $_('fmList').innerHTML=h||'<div class="empty-state"><div class="es-title">Empty directory</div></div>';
+    const d=await api('/api/dashboard');
+    $_('dash-llm').textContent=d.llm?'ON':'OFF';
+    $_('dash-llm').style.color=d.llm?'var(--accent3)':'var(--accent4)';
+    $_('dash-bot').textContent=d.bot?'ON':'OFF';
+    $_('dash-bot').style.color=d.bot?'var(--accent)':'var(--accent4)';
+    $_('dash-lt').textContent=d.memory.long_term||0;
+    $_('dash-st').textContent=d.memory.short_term||0;
+    $_('dash-buf').textContent=d.memory.buffer||0;
+    $_('dash-junk').textContent=d.memory.junk||0;
+    $_('dash-files').textContent=d.total_files||0;
+    $_('dash-dirs').textContent=d.total_dirs||0;
+    const ev=d.recent_events||[];
+    const el=$_('dash-events');
+    if(ev.length){
+      el.innerHTML=ev.slice(-10).reverse().map(e=>
+        '<div class="pipe-evt"><div class="pipe-ts">'+(e.ts_human||'')+'</div><div class="pipe-stage '+e.stage+'">'+e.stage+'</div><div class="pipe-data">'+esc(typeof e.data==='object'?Object.values(e.data).join(' ').slice(0,80):String(e.data).slice(0,80))+'</div></div>'
+      ).join('');
     }else{
+      el.innerHTML='<div class="pipe-empty">No recent events</div>';
+    }
+  }catch(e){}
+}
+loadDashboard();
+setInterval(loadDashboard,15000);
+
+// ═════════════════════════════════════════════════════════
+// FILES — full CRUD file manager
+// ═════════════════════════════════════════════════════════
+let _fmPath='',_fmFile='';
+
+function fmSize(b){
+  if(!b)return'';if(b<1024)return b+'B';if(b<1048576)return(b/1024).toFixed(1)+'KB';
+  return(b/1048576).toFixed(1)+'MB';
+}
+function fmTime(ts){
+  if(!ts)return'';const d=new Date(ts*1000);
+  return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+}
+function fmGoHome(){_fmPath='';fmLoad();}
+function fmUp(){
+  if(_fmPath){const p=_fmPath.split('/');p.pop();_fmPath=p.join('/');}
+  fmLoad();
+}
+function fmBreadClick(e){
+  const idx=e.target.dataset.idx;
+  if(idx!==undefined){
+    const parts=_fmPath.split('/').filter(Boolean);
+    _fmPath=parts.slice(0,parseInt(idx)+1).join('/');
+    fmLoad();
+  }
+}
+
+async function fmLoad(){
+  $_('fmEditor').classList.remove('open');
+  $_('fmUpload').classList.remove('open');
+  $_('fmToolbar').style.display='none';
+  // breadcrumb
+  const parts=_fmPath.split('/').filter(Boolean);
+  let bc='<span data-idx="-1" onclick="fmGoHome()" style="color:var(--accent)">~</span>';
+  parts.forEach((p,i)=>{bc+='<span style="color:var(--dim);margin:0 2px">/</span><span data-idx="'+i+'" style="color:'+(i===parts.length-1?'var(--text)':'var(--text2)')+'">'+esc(p)+'</span>';});
+  $_('fmPath').innerHTML='<span style="font-size:11px;color:var(--dim);margin-right:4px">nermana/</span>'+bc;
+  $_('fmPath').onclick=fmBreadClick;
+
+  try{
+    const r=await api('/api/files?path='+encodeURIComponent(_fmPath));
+    if(!r.is_dir){
       $_('fmEditArea').value=r.content||'';
       _fmFile=r.path;
+      $_('fmEditPath').textContent=r.path;
       $_('fmEditor').classList.add('open');
       $_('fmList').innerHTML='';
+      return;
     }
+    let h='';
+    // sort: dirs first, then files
+    const dirs=r.entries.filter(e=>e.is_dir).sort((a,b)=>a.name.localeCompare(b.name));
+    const files=r.entries.filter(e=>!e.is_dir).sort((a,b)=>a.name.localeCompare(b.name));
+    for(const e of[...dirs,...files]){
+      const isPy=e.name.endsWith('.py');
+      const isMd=e.name.endsWith('.md');
+      const isCfg=e.name==='.config';
+      const icon=e.is_dir?'📁':isPy?'🐍':isMd?'📝':isCfg?'⚙':'📄';
+      h+=`<div class="fm-entry" onclick="fmOpen('${esc(e.name)}',${e.is_dir})" oncontextmenu="event.preventDefault();fmCtx('${esc(e.name)}',${e.is_dir})">
+        <div class="fe-icon">${icon}</div>
+        <div class="fe-name">${esc(e.name)}</div>
+        <div style="font-size:10px;color:var(--dim);font-family:var(--mono);text-align:right">
+          ${e.size!=null?'<div>'+fmSize(e.size)+'</div>':''}
+          ${e.modified?'<div style="font-size:9px;color:var(--border2)">'+fmTime(e.modified)+'</div>':''}
+        </div>
+      </div>`;
+    }
+    $_('fmList').innerHTML=h||'<div class="empty-state"><div class="es-title">Empty directory</div><div class="es-desc" style="font-size:12px">Create a new file or directory</div></div>';
   }catch(e){$_('fmList').innerHTML='<div class="empty-state"><div class="es-title">Error</div><div class="es-desc">'+esc(e.message)+'</div></div>';}
 }
-function fmSize(b){
-  if(b<1024)return b+'B';
-  if(b<1048576)return (b/1024).toFixed(1)+'KB';
-  return (b/1048576).toFixed(1)+'MB';
-}
+
 function fmOpen(name,isDir){
   if(isDir){
     _fmPath=_fmPath?_fmPath+'/'+name:name;
     fmLoad();
   }else{
     const p=_fmPath?_fmPath+'/'+name:name;
-    const old=_fmPath;_fmPath=p;fmLoad();_fmPath=old;
+    _fmFile=p;
+    fmLoad(); // loads file content
   }
 }
+
 async function fmSave(){
+  const content=$_('fmEditArea').value;
   try{
-    const r=await api('/api/files/save',{method:'POST',body:JSON.stringify({root:_fmRoot,path:_fmFile,content:$_('fmEditArea').value})});
-    toast('Saved','ok');
+    const r=await api('/api/files/save',{method:'POST',body:JSON.stringify({path:_fmFile,content})});
+    toast('Saved: '+_fmFile,'ok');
   }catch(e){toast(e.message,'err');}
 }
-function fmCancel(){$_('fmEditor').classList.remove('open');fmLoad();}
+
+function fmCancel(){
+  $_('fmEditor').classList.remove('open');
+  _fmFile='';
+  fmLoad();
+}
+
 async function fmDelete(){
-  if(!confirm('Delete this file?'))return;
+  const path=_fmFile||_fmPath;
+  if(!path){toast('No file selected','err');return;}
+  const name=path.split('/').pop()||'this';
+  if(!confirm('Delete '+name+'?'))return;
   try{
-    await api('/api/files/delete',{method:'POST',body:JSON.stringify({root:_fmRoot,path:_fmFile})});
-    toast('Deleted','ok');fmUp();
+    const r=await api('/api/files/delete',{method:'POST',body:JSON.stringify({path})});
+    toast('Deleted: '+name,'ok');
+    if(_fmFile)_fmFile='';
+    $_('fmEditor').classList.remove('open');
+    fmUp();
   }catch(e){toast(e.message,'err');}
+}
+
+async function fmRename(){
+  const path=_fmFile||_fmPath;
+  if(!path){toast('Nothing selected','err');return;}
+  const old=path.split('/').pop()||'';
+  const neu=prompt('Rename to:',old);
+  if(!neu||neu===old)return;
+  try{
+    const r=await api('/api/files/rename',{method:'POST',body:JSON.stringify({path,name:neu})});
+    toast('Renamed to '+neu,'ok');
+    if(_fmFile)_fmFile=r.path;
+    fmLoad();
+  }catch(e){toast(e.message,'err');}
+}
+
+function fmNewFile(){
+  const name=prompt('New file name:','untitled.txt');
+  if(!name)return;
+  const path=_fmPath?(_fmPath+'/'+name):name;
+  api('/api/files/create',{method:'POST',body:JSON.stringify({path,kind:'file',content:''})})
+    .then(r=>{toast('Created: '+name,'ok');fmOpen(name,false);})
+    .catch(e=>toast(e.message,'err'));
+}
+
+function fmNewDir(){
+  const name=prompt('New directory name:','new_folder');
+  if(!name)return;
+  const path=_fmPath?(_fmPath+'/'+name):name;
+  api('/api/files/create',{method:'POST',body:JSON.stringify({path,kind:'dir'})})
+    .then(r=>{toast('Created: '+name,'ok');fmLoad();})
+    .catch(e=>toast(e.message,'err'));
+}
+
+function fmRefresh(){fmLoad();}
+
+function fmUploadToggle(){
+  const u=$_('fmUpload');
+  u.classList.toggle('open');
+}
+
+async function fmUploadFile(input){
+  const file=input.files[0];
+  if(!file)return;
+  const dest=_fmPath?(_fmPath+'/'+file.name):file.name;
+  const fd=new FormData();
+  fd.append('file',file);
+  fd.append('path',dest);
+  try{
+    const r=await fetch('/api/files/upload',{method:'POST',body:fd}).then(r=>r.json());
+    if(r.error){toast(r.error,'err');return;}
+    toast('Uploaded: '+file.name+' ('+fmSize(r.size)+')','ok');
+    $_('fmUpload').classList.remove('open');
+    fmLoad();
+  }catch(e){toast(e.message,'err');}
+  input.value='';
 }
 
 // ═════════════════════════════════════════════════════════
 // INIT
 // ═════════════════════════════════════════════════════════
-// Keyboard shortcut: Ctrl+Enter to send
 document.addEventListener('keydown',e=>{
   if(e.ctrlKey&&e.key==='Enter')sendChat();
+  // Ctrl+S to save file in editor
+  if(e.ctrlKey&&e.key==='s'&&$_('fmEditor').classList.contains('open')){e.preventDefault();fmSave();}
 });
 </script>
 </body>

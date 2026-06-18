@@ -81,18 +81,25 @@ def _is_valid_gguf(path):
     except:
         return False
 
-FM_ROOTS = {"knowledge": BASE / "knowledge", "memory": BASE / "memory"}
-
-def _fm_resolve(root, rel):
-    if root not in FM_ROOTS:
-        return None
-    base = FM_ROOTS[root].resolve()
-    target = (base / (rel or "")).resolve()
+def _fm_resolve(path):
+    """Resolve a path relative to BASE, preventing traversal. Returns Path or None."""
+    if not path:
+        target = BASE
+    else:
+        target = (BASE / path).resolve()
     try:
-        target.relative_to(base)
+        target.relative_to(BASE)
     except ValueError:
         return None
     return target
+
+def _fm_stat(p: Path):
+    s = p.stat()
+    return {
+        "name": p.name, "is_dir": p.is_dir(),
+        "size": s.st_size if p.is_file() else None,
+        "modified": s.st_mtime, "mode": s.st_mode,
+    }
 
 # ── WebUI conversation state ──────────────────────────────────────
 # _web_history is the source of truth for what NERMANA knows this session.
@@ -515,42 +522,204 @@ def api_chat_clear():
         _web_history.clear()
     return jsonify({"status": "ok"})
 
-@app.route('/api/files/save', methods=['POST'])
-def api_files_save():
-    data   = request.json
-    target = _fm_resolve(data.get('root', 'knowledge'), data.get('path', ''))
-    if target is None or not target.is_file():
-        return jsonify({"error": "not found"}), 404
+# ── File Manager (full CRUD over ~/nermana/) ────────────────
+
+def _fm_args():
+    data = request.json or {}
+    return _fm_resolve(data.get("path", "")), data.get("path", "")
+
+def _fm_err(msg, code=400):
+    return jsonify({"error": msg}), code
+
+@app.route("/api/files")
+def api_files_list():
+    rel = request.args.get("path", "")
+    target = _fm_resolve(rel)
+    if not target or not target.exists():
+        return _fm_err("not found", 404)
+    if target.is_dir():
+        entries = []
+        for p in sorted(target.iterdir()):
+            s = p.stat()
+            entries.append({
+                "name": p.name, "is_dir": p.is_dir(),
+                "size": s.st_size if p.is_file() else None,
+                "modified": int(s.st_mtime),
+            })
+        return jsonify({"path": rel, "is_dir": True, "entries": entries, "base": str(BASE)})
+    else:
+        is_binary = False
+        try:
+            text = target.read_text(encoding="utf-8", errors="strict")[:50000]
+        except (UnicodeDecodeError, ValueError):
+            is_binary = True
+            text = None
+        s = target.stat()
+        return jsonify({
+            "path": rel, "is_dir": False, "is_binary": is_binary,
+            "content": text, "size": s.st_size, "modified": int(s.st_mtime),
+            "base": str(BASE),
+        })
+
+@app.route("/api/files/read", methods=["POST"])
+def api_files_read():
+    target, rel = _fm_args()
+    if not target or not target.is_file():
+        return _fm_err("not found", 404)
     try:
-        target.write_text(data.get('content', ''), encoding='utf-8')
-        return jsonify({"status": "ok"})
+        return jsonify({"content": target.read_text(encoding="utf-8")})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/files')
-def api_files():
-    root   = request.args.get('root', 'knowledge')
-    rel    = request.args.get('path', '')
-    target = _fm_resolve(root, rel)
-    if not target or not target.exists():
-        return jsonify({"error": "not found"}), 404
-    if target.is_dir():
-        entries = [{"name": p.name, "is_dir": p.is_dir(),
-                    "size": p.stat().st_size if p.is_file() else None}
-                   for p in sorted(target.iterdir())]
-        return jsonify({"root": root, "path": rel, "is_dir": True, "entries": entries})
-    else:
-        return jsonify({"root": root, "path": rel, "is_dir": False,
-                        "content": target.read_text(encoding='utf-8', errors='replace')[:50000]})
+@app.route("/api/files/save", methods=["POST"])
+def api_files_save():
+    data = request.json or {}
+    target = _fm_resolve(data.get("path", ""))
+    if not target:
+        return _fm_err("invalid path")
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(data.get("content", ""), encoding="utf-8")
+        return jsonify({"status": "ok", "path": data.get("path", "")})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-@app.route('/api/files/delete', methods=['POST'])
+@app.route("/api/files/create", methods=["POST"])
+def api_files_create():
+    data = request.json or {}
+    path = data.get("path", "").strip()
+    kind = data.get("kind", "file")
+    if not path:
+        return _fm_err("path required")
+    target = _fm_resolve(path)
+    if not target:
+        return _fm_err("invalid path")
+    if target.exists():
+        return _fm_err("already exists", 409)
+    try:
+        if kind == "dir":
+            target.mkdir(parents=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(data.get("content", ""), encoding="utf-8")
+        return jsonify({"status": "ok", "path": path, "is_dir": kind == "dir"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/files/rename", methods=["POST"])
+def api_files_rename():
+    data = request.json or {}
+    target, _ = _fm_args()
+    if not target or not target.exists():
+        return _fm_err("not found", 404)
+    new_name = data.get("name", "").strip()
+    if not new_name:
+        return _fm_err("new name required")
+    new_path = target.parent / new_name
+    if new_path.exists():
+        return _fm_err("target already exists", 409)
+    try:
+        target.rename(new_path)
+        return jsonify({"status": "ok", "path": str(new_path.relative_to(BASE))})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/files/move", methods=["POST"])
+def api_files_move():
+    data = request.json or {}
+    src = _fm_resolve(data.get("path", ""))
+    dst = _fm_resolve(data.get("dest", ""))
+    if not src or not src.exists():
+        return _fm_err("source not found", 404)
+    if not dst:
+        return _fm_err("invalid destination")
+    if dst.exists() and dst.is_dir():
+        dst = dst / src.name
+    if dst.exists():
+        return _fm_err("destination already exists", 409)
+    try:
+        src.rename(dst)
+        return jsonify({"status": "ok", "path": str(dst.relative_to(BASE))})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/files/delete", methods=["POST"])
 def api_files_delete():
-    data   = request.json
-    target = _fm_resolve(data.get('root', 'knowledge'), data.get('path', ''))
-    if not target or not target.is_file():
-        return jsonify({"error": "not found"}), 404
-    target.unlink()
-    return jsonify({"status": "ok"})
+    data = request.json or {}
+    path = data.get("path", "")
+    target = _fm_resolve(path)
+    if not target or not target.exists():
+        return _fm_err("not found", 404)
+    try:
+        if target.is_dir():
+            import shutil
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+        return jsonify({"status": "ok", "path": path})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/files/info")
+def api_files_info():
+    rel = request.args.get("path", "")
+    target = _fm_resolve(rel)
+    if not target or not target.exists():
+        return _fm_err("not found", 404)
+    s = target.stat()
+    return jsonify({
+        "path": rel, "name": target.name, "is_dir": target.is_dir(),
+        "size": s.st_size, "modified": int(s.st_mtime), "mode": oct(s.st_mode),
+        "base": str(BASE),
+    })
+
+@app.route("/api/files/upload", methods=["POST"])
+def api_files_upload():
+    if "file" not in request.files:
+        return _fm_err("no file provided")
+    file = request.files["file"]
+    dest_path = request.form.get("path", file.filename or "")
+    target = _fm_resolve(dest_path)
+    if not target:
+        return _fm_err("invalid path")
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        file.save(target)
+        return jsonify({"status": "ok", "path": dest_path, "size": target.stat().st_size})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ── Dashboard ────────────────────────────────────────────────
+
+@app.route("/api/dashboard")
+def api_dashboard():
+    mem = _memory_stats()
+    cfg = _read_cfg()
+    host = cfg.get("LLAMA_HOST", "127.0.0.1")
+    port = cfg.get("LLAMA_PORT", "8080")
+    llm_ok = False
+    try:
+        import requests
+        llm_ok = requests.get(f"http://{host}:{port}/health", timeout=2).status_code == 200
+    except:
+        pass
+    bot_ok = (BASE / ".bot.pid").exists()
+    # file counts
+    total_files = 0
+    total_dirs = 0
+    for root, dirs, files in os.walk(BASE):
+        if ".git" in root or "__pycache__" in root:
+            continue
+        total_dirs += len(dirs)
+        total_files += len(files)
+    # recent pipeline events
+    events = _get_pipeline_events(20)
+    return jsonify({
+        "llm": llm_ok, "bot": bot_ok,
+        "memory": mem,
+        "total_files": total_files, "total_dirs": total_dirs,
+        "recent_events": events,
+    })
 
 @app.route('/api/pipeline_log')
 def api_pipeline():

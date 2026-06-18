@@ -382,14 +382,37 @@ download_file \
 section "Telegram setup"
 TELEGRAM_TOKEN=""
 
-if [ "$_QUICK_MODE" = true ]; then
+get_telegram_token() {
+    local saved_token=""
     if [ -f "$CONFIG_FILE" ]; then
-        EXISTING_TOKEN=$(grep "^TELEGRAM_TOKEN=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]' || true)
-        if [ -n "$EXISTING_TOKEN" ]; then
-            TELEGRAM_TOKEN="$EXISTING_TOKEN"
-            ok "Using existing token"
+        saved_token=$(grep "^TELEGRAM_TOKEN=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]' || true)
+        if [ -n "$saved_token" ]; then
+            if curl -s "https://api.telegram.org/bot${saved_token}/getMe" | grep -q '"ok":true'; then
+                if [ "$_QUICK_MODE" = false ] && ! prompt_yn "Use existing valid token?"; then
+                    saved_token=""
+                fi
+            else
+                saved_token=""
+            fi
         fi
     fi
+    TELEGRAM_TOKEN="$saved_token"
+    if [ -z "$TELEGRAM_TOKEN" ]; then
+        echo ""
+        read -p "  ${CYAN}?${RESET} Paste your Telegram Bot Token (or press Enter for offline): " TELEGRAM_TOKEN
+        if [ -n "$TELEGRAM_TOKEN" ]; then
+            info "Validating..."
+            if curl -s "https://api.telegram.org/bot${TELEGRAM_TOKEN}/getMe" | grep -q '"ok":true'; then
+                ok "Token validated"
+            else
+                warn "Validation failed — you can edit .config later"
+            fi
+        fi
+    fi
+}
+
+if [ "$_QUICK_MODE" = true ]; then
+    get_telegram_token
     [ -z "$TELEGRAM_TOKEN" ] && info "Quick mode — offline (no Telegram)"
 else
     echo ""
@@ -398,24 +421,9 @@ else
     echo -e "    ${CYAN}2${RESET}) Offline mode — web UI only"
     echo ""
     read -p "  ${CYAN}?${RESET} Mode [1-2]: " mode_ch
-
+    mode_ch="${mode_ch:-1}"
     if [ "$mode_ch" != "2" ]; then
-        if [ -f "$CONFIG_FILE" ]; then
-            EXISTING_TOKEN=$(grep "^TELEGRAM_TOKEN=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2 | tr -d '[:space:]' || true)
-            if [ -n "$EXISTING_TOKEN" ] && curl -s "https://api.telegram.org/bot${EXISTING_TOKEN}/getMe" | grep -q '"ok":true'; then
-                TELEGRAM_TOKEN="$EXISTING_TOKEN"
-                ok "Token valid"
-            fi
-        fi
-        if [ -z "$TELEGRAM_TOKEN" ]; then
-            read -p "  ${CYAN}?${RESET} Paste your Telegram Bot Token: " TELEGRAM_TOKEN
-            if [ -n "$TELEGRAM_TOKEN" ]; then
-                info "Validating..."
-                curl -s "https://api.telegram.org/bot${TELEGRAM_TOKEN}/getMe" | grep -q '"ok":true' \
-                    && ok "Token validated" \
-                    || warn "Validation failed — you can edit .config later"
-            fi
-        fi
+        get_telegram_token
     fi
     [ -z "$TELEGRAM_TOKEN" ] && info "Offline mode — use web UI at http://127.0.0.1:5000"
 fi

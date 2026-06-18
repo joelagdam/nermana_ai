@@ -3,7 +3,7 @@
 import sys
 import re, json, subprocess, shutil, socket, time as _time, os, threading
 from pathlib import Path
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request, Response, send_from_directory
 
 # sys.path must be set before any local imports
 sys.path.insert(0, str(Path.home() / "nermana" / "modules"))
@@ -1127,19 +1127,19 @@ def api_reinstall():
     out = _run(f"cd {BASE} && bash install.sh --quick 2>&1")
     return jsonify({"status": "done", "output": out[-500:], "version": _current_version()})
 
+WEB_DIR = Path(__file__).parent
+
 @app.route('/css/<path:filename>')
 def css_static(filename):
-    return Response((Path(__file__).parent / "css" / filename).read_bytes(),
-                    mimetype="text/css")
+    return send_from_directory(WEB_DIR / "css", filename)
 
 @app.route('/js/<path:filename>')
 def js_static(filename):
-    return Response((Path(__file__).parent / "js" / filename).read_bytes(),
-                    mimetype="application/javascript")
+    return send_from_directory(WEB_DIR / "js", filename)
 
 @app.route('/')
 def index():
-    return Response((Path(__file__).parent / "index.html").read_text(), mimetype="text/html")
+    return send_from_directory(WEB_DIR, "index.html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False, threaded=True)

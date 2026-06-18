@@ -166,6 +166,45 @@ patch_module() {
     esac
 }
 
+list_summaries() {
+    echo ""
+    echo -e "${BOLD}NERMANA Topic Summaries${RESET}"
+    echo ""
+    local summary_dir="$NERMANA_DIR/memory/summaries"
+    if [ ! -d "$summary_dir" ]; then
+        echo "No summaries directory found"
+        return
+    fi
+
+    local count=0
+    for summary_file in "$summary_dir"/*.txt; do
+        [ -e "$summary_file" ] || continue
+        count=$((count + 1))
+        local topic=$(basename "$summary_file" .txt | tr '_' ' ')
+        echo -e "${CYAN}Topic: $topic${RESET}"
+        if [ -s "$summary_file" ]; then
+            local content=$(cat "$summary_file")
+            echo "$content" | tr ';;' '\n' | while read -r line; do
+                if [ -n "$line" ]; then
+                    local fact=$(echo "$line" | cut -d'|' -f1)
+                    local score=$(echo "$line" | cut -d'|' -f2)
+                    echo "  - $fact [$score]"
+                fi
+            done
+        else
+            echo "  (empty)"
+        fi
+        echo ""
+    done
+
+    if [ $count -eq 0 ]; then
+        echo "No summary files found"
+    else
+        echo -e "${DIM}Total summary topics: $count${RESET}"
+    fi
+    echo ""
+}
+
 list_modules() {
     echo ""
     echo -e "${BOLD}NERMANA module structure (for patching):${RESET}"
@@ -188,6 +227,10 @@ list_modules() {
     echo "  nermana patch web    →  web/nermana_web.py  ($(wc -l < "$NERMANA_DIR/web/nermana_web.py" 2>/dev/null || echo ?) lines)"
     echo "  nermana patch html   →  web/index.html  ($(wc -l < "$NERMANA_DIR/web/index.html" 2>/dev/null || echo ?) lines)"
     echo ""
+    echo -e "${CYAN}Summaries (memory/):${RESET}"
+    echo "  Summaries are auto-generated from facts in memory/summaries/"
+    echo "  Configured via SUMMARY_FACTS_PER_TOPIC in .config (default: 5)"
+    echo ""
     echo -e "${CYAN}Control (root):${RESET}"
     echo "  nermana patch ctl    →  nermana_ctl.sh"
     echo ""
@@ -198,6 +241,7 @@ list_modules() {
 case "$1" in
     patch) patch_module "$2" "$3" ;;
     modules) list_modules ;;
+    summaries) list_summaries ;;
     start) start_servers; start_bot ;;
     stop) stop_bot; stop_servers ;;
     restart) stop_bot; stop_servers; sleep 1; start_servers; start_bot ;;
@@ -211,5 +255,5 @@ case "$1" in
         pgrep -f "nermana_bot.py" >/dev/null && ok "Bot running" || fail "Bot stopped"
         ;;
     reset) rm -rf "$NERMANA_DIR/memory/long_term" "$NERMANA_DIR/memory/short_term" "$NERMANA_DIR/memory/buffer" "$NERMANA_DIR/knowledge/facts.txt" "$NERMANA_DIR/memory/embeddings/vectors.db"; mkdir -p "$NERMANA_DIR/memory/long_term" "$NERMANA_DIR/memory/short_term" "$NERMANA_DIR/memory/buffer"; ok "Memory cleared" ;;
-    *) echo "Usage: nermana {start|stop|restart|web|web-stop|status|reset|patch|modules}" ;;
+    *) echo "Usage: nermana {start|stop|restart|web|web-stop|status|reset|patch|modules|summaries}" ;;
 esac

@@ -40,7 +40,7 @@ download_file() {
         fi
     fi
     echo -ne " ${CYAN}↓${RESET} Downloading ${BOLD}$label${RESET}...\n"
-    wget -c --show-progress "$url" -O "$path" 2>&1 | tail -5 || {
+    wget -c --show-progress "$url" -O "$path" || {
         echo -ne "\r ${RED}✖${RESET} Download failed: $label\n"
         return 1
     }
@@ -266,7 +266,7 @@ else
         rm -rf -- "$LLAMA_DIR/build"
     else
         info "Cloning llama.cpp..."
-        git clone --depth=1 https://github.com/ggerganov/llama.cpp "$LLAMA_DIR" 2>&1 | tail -2
+        git clone --depth=1 https://github.com/ggerganov/llama.cpp "$LLAMA_DIR"
     fi
     cd "$LLAMA_DIR"
     info "Configuring with cmake..."
@@ -339,7 +339,7 @@ if [ "$ch" != "s" ] && [ "$ch" != "S" ]; then
         ok "${BOLD}$ACTIVE_MODEL${RESET} already downloaded ($(( sz / 1048576 )) MB) — skipping"
     else
         info "Downloading ${BOLD}$ACTIVE_MODEL${RESET}..."
-        if wget -c --show-progress "$MODEL_URL" -O "$MODEL_PATH" 2>&1 | tail -3; then
+        if wget -c --show-progress "$MODEL_URL" -O "$MODEL_PATH"; then
             if verify_gguf "$MODEL_PATH"; then
                 sz=$(stat -c%s "$MODEL_PATH" 2>/dev/null || stat -f%z "$MODEL_PATH" 2>/dev/null || echo 0)
                 ok "${BOLD}$ACTIVE_MODEL${RESET} — $(( sz / 1048576 )) MB"

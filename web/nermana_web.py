@@ -65,10 +65,12 @@ def _memory_stats():
         "buffer":     count(BASE / "memory/buffer"),
     }
 
-def _run(cmd):
+def _run(cmd, timeout=120):
     try:
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=15)
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
         return (r.stdout + r.stderr).strip()[-500:]
+    except subprocess.TimeoutExpired:
+        return "timeout"
     except:
         return ""
 
@@ -738,6 +740,7 @@ def api_pipeline():
 @app.route('/api/pipeline_stream')
 def api_pipeline_stream():
     logf = BASE / "logs" / "pipeline.jsonl"
+    logf.parent.mkdir(parents=True, exist_ok=True)
     def gen():
         pos = 0
         while True:
@@ -751,6 +754,7 @@ def api_pipeline_stream():
                         for line in new.splitlines():
                             if line.strip():
                                 yield f"data: {line}\n\n"
+            yield ": keepalive\n\n"
             _time.sleep(1)
     return Response(gen(), mimetype="text/event-stream")
 
@@ -1072,8 +1076,9 @@ def api_version():
 @app.route('/api/update/check', methods=['POST'])
 def api_update_check():
     """Fetch from remote and report behind count."""
-    # First fetch
-    rc, _, err = _git(["fetch", "--tags", "origin"], timeout=30)
+    if not (BASE / ".git").exists():
+        return jsonify({"status": "error", "error": "no git repository"})
+    rc, _, err = _git(["fetch", "--tags", "origin"], timeout=60)
     if rc != 0:
         return jsonify({"status": "error", "error": f"git fetch failed: {err[:200]}"})
     # Now count behind
@@ -1124,7 +1129,7 @@ def api_update_rollback():
 
 @app.route('/api/reinstall', methods=['POST'])
 def api_reinstall():
-    out = _run(f"cd {BASE} && bash install.sh --quick 2>&1")
+    out = _run(f"cd {BASE} && bash install.sh --quick 2>&1", timeout=600)
     return jsonify({"status": "done", "output": out[-500:], "version": _current_version()})
 
 WEB_DIR = Path(__file__).resolve().parent

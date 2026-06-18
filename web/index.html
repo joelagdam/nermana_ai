@@ -1236,6 +1236,26 @@ a:hover { text-decoration: underline; }
 .trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .w-full { width: 100%; }
 .text-center { text-align: center; }
+        /* Context menu for file manager */
+        .context-menu {
+          position: fixed;
+          background: var(--surface);
+          border: 1px solid var(--border2);
+          border-radius: var(--radius-sm);
+          box-shadow: var(--shadow);
+          z-index: 100;
+          display: none;
+          min-width: 120px;
+        }
+        .context-menu .cm-item {
+          padding: 8px 12px;
+          color: var(--text);
+          font-size: 13px;
+          cursor: pointer;
+          border-bottom: 1px solid var(--border);
+        }
+        .context-menu .cm-item:last-child { border-bottom: none; }
+        .context-menu .cm-item:hover { background: var(--surface2); }
 </style>
 </head>
 <body>
@@ -1301,6 +1321,29 @@ a:hover { text-decoration: underline; }
         <button class="btn btn-sm btn-danger" onclick="botCtl('stop-server')">⏹ Stop LLM</button>
       </div>
 
+      <!-- ▸ Device & Terminal -->
+      <div class="collapse-header" onclick="toggleCollapse('device')" id="ch-device">
+        <span class="ch-icon">▶</span>
+        <span class="ch-title">Device & Terminal</span>
+        <span class="ch-badge">phone</span>
+      </div>
+      <div class="collapse-body" id="cb-device">
+        <div class="collapse-body-inner">
+          <div class="card">
+            <div class="card-label">🔋 Battery</div>
+            <div id="deviceBattery">Loading…</div>
+          </div>
+          <div class="card">
+            <div class="card-label">📱 Device</div>
+            <div id="deviceInfo">Loading…</div>
+          </div>
+          <div class="card">
+            <div class="card-label">💻 Terminal</div>
+            <button class="btn btn-sm" onclick="openTermuxTerminal()">Open Termux</button>
+          </div>
+        </div>
+      </div>
+
       <!-- ▸ System Health -->
       <div class="collapse-header" onclick="toggleCollapse('health')" id="ch-health">
         <span class="ch-icon">▶</span>
@@ -1336,12 +1379,6 @@ a:hover { text-decoration: underline; }
       </div>
       <div class="collapse-body" id="cb-memory">
         <div class="collapse-body-inner">
-          <div class="grid-4">
-            <div class="stat-box"><div id="statLT" class="stat-num lt">—</div><div class="stat-lbl">Long-term</div></div>
-            <div class="stat-box"><div id="statST" class="stat-num st">—</div><div class="stat-lbl">Short-term</div></div>
-            <div class="stat-box"><div id="statBuf" class="stat-num buf">—</div><div class="stat-lbl">Buffer</div></div>
-            <div class="stat-box"><div id="statJunk" class="stat-num jk">—</div><div class="stat-lbl">Junk</div></div>
-          </div>
           <div class="card" style="margin-top:4px;display:flex;align-items:center;gap:10px">
             <span style="font-size:22px" id="memMoodIcon">🧠</span>
             <span style="font-size:13px;color:var(--text2)" id="memMoodText">Loading…</span>
@@ -1749,9 +1786,7 @@ function initPipeline() {
       if (_pipeFilter !== 'all' && d.stage !== _pipeFilter) return;
       const row = document.createElement('div');
       row.className = 'pipe-evt';
-      const ds = typeof d.data === 'object'
-        ? Object.values(d.data).join(' ').slice(0, 140)
-        : String(d.data).slice(0, 140);
+      const ds = formatPipelineData(d.stage, d.data);
       row.innerHTML = '<div class="pipe-ts">' + (d.ts_human || '') + '</div>'
         + '<div class="pipe-stage ' + d.stage + '">' + d.stage + '</div>'
         + '<div class="pipe-data">' + esc(ds) + '</div>';
@@ -2404,15 +2439,9 @@ async function fmLoad() {
       const isCfg = e.name === '.config';
       const icon = e.is_dir ? '📁' : isPy ? '🐍' : isMd ? '📝' : isCfg ? '⚙' : '📄';
       const en = esc(e.name);
-      h += '<div class="fm-entry">'
+      h += '<div class="fm-entry" data-path="' + esc(e.path) + '" data-name="' + en + '" data-isdir="' + (e.is_dir ? '1' : '0') + '">'
         + '<div class="fe-icon" onclick="fmOpen(\'' + en + '\',' + e.is_dir + ')">' + icon + '</div>'
         + '<div class="fe-name" onclick="fmOpen(\'' + en + '\',' + e.is_dir + ')">' + en + '</div>'
-        + '<div class="fe-actions">'
-        + (e.is_dir ? ''
-          : '<button onclick="event.stopPropagation();fmOpen(\'' + en + '\',false)">✏️</button>')
-        + '<button onclick="event.stopPropagation();fmRenameFile(\'' + en + '\')">🔀</button>'
-        + '<button onclick="event.stopPropagation();fmDeleteFile(\'' + en + '\')">🗑️</button>'
-        + '</div>'
         + '<div class="fe-size">'
         + (e.size != null ? fmSize(e.size) : '')
         + (e.modified ? '<div style="font-size:9px;color:var(--border2)">' + fmTime(e.modified) + '</div>' : '')
@@ -2420,6 +2449,11 @@ async function fmLoad() {
     }
     if (listEl) {
       listEl.innerHTML = h || '<div class="fm-empty"><div class="es-title">Empty directory</div><div class="es-desc" style="font-size:12px">Create a file or directory</div></div>';
+      // Add touch event listeners for context menu
+      if (listEl) {
+        listEl.addEventListener('touchstart', handleTouchStart, {passive: true});
+        listEl.addEventListener('touchend', handleTouchEnd, {passive: true});
+      }
     }
   } catch (e) {
     if (listEl) listEl.innerHTML = '<div class="fm-empty"><div class="es-title">Error</div><div class="es-desc">' + esc(e.message) + '</div></div>';
@@ -2561,6 +2595,132 @@ document.addEventListener('keydown', (e) => {
     if (editor && editor.classList.contains('open')) { e.preventDefault(); fmSave(); }
   }
 });
+        // File manager context menu
+        let _fmTouchStartTime = 0;
+        let _fmTargetEntry = null;
+
+        function handleTouchStart(e) {
+          _fmTouchStartTime = Date.now();
+          const entry = e.target.closest('.fm-entry');
+          if (entry) {
+            _fmTargetEntry = entry;
+          } else {
+            _fmTargetEntry = null;
+          }
+        }
+
+        function handleTouchEnd(e) {
+          if (!_fmTargetEntry) return;
+          const touchEndTime = Date.now();
+          if (touchEndTime - _fmTouchStartTime > 500) { // long press
+            e.preventDefault();
+            showContextMenu(e.targetTouches ? e.targetTouches[0] : e.changedTouches[0], _fmTargetEntry);
+          }
+          // Reset
+          _fmTouchStartTime = 0;
+          _fmTargetEntry = null;
+        }
+
+        function showContextMenu(touchPoint, entry) {
+          const menu = $('fmContextMenu');
+          if (!menu) return;
+          // Clear previous items
+          menu.innerHTML = '';
+          const isDir = entry.dataset.isdir === '1';
+          const name = entry.dataset.name;
+          const path = entry.dataset.path;
+
+          // Determine actions based on type
+          const actions = [];
+          if (isDir) {
+            actions.push({label: 'Open', action: 'open'});
+            actions.push({label: 'Rename', action: 'rename'});
+            actions.push({label: 'Delete', action: 'delete'});
+          } else {
+            actions.push({label: 'Edit', action: 'edit'});
+            actions.push({label: 'Rename', action: 'rename'});
+            actions.push({label: 'Delete', action: 'delete'});
+          }
+
+          actions.forEach(action => {
+            const item = document.createElement('div');
+            item.className = 'cm-item';
+            item.dataset.action = action.action;
+            item.dataset.path = path;
+            item.dataset.name = name;
+            item.dataset.isdir = entry.dataset.isdir;
+            item.textContent = action.label;
+            menu.appendChild(item);
+          });
+
+          // Position the menu
+          menu.style.left = touchPoint.clientX + 'px';
+          menu.style.top = touchPoint.clientY + 'px';
+          menu.style.display = 'block';
+        }
+
+        // Hide context menu when clicking outside
+        document.addEventListener('click', function(e) {
+          const menu = $('fmContextMenu');
+          if (!menu) return;
+          if (!menu.contains(e.target) && !e.target.closest('.fm-entry')) {
+            menu.style.display = 'none';
+          }
+        });
+        // Device info
+        async function updateDeviceInfo() {
+          try {
+            const battery = await navigator.getBattery();
+            const level = Math.round(battery.level * 100);
+            const charging = battery.charging ? 'charging' : '';
+            $('deviceBattery').textContent = level + '% ' + charging;
+          } catch (e) {
+            $('deviceBattery').textContent = 'N/A';
+          }
+          try {
+            const ua = navigator.userAgent;
+            $('deviceInfo').textContent = ua;
+          } catch (e) {
+            $('deviceInfo').textContent = 'N/A';
+          }
+        }
+
+        function openTermuxTerminal() {
+          alert('Opening Termux terminal is not supported in the web version. Please use the Termux app directly.');
+        }
+
+        // Update device info every 30 seconds
+        updateDeviceInfo();
+        setInterval(updateDeviceInfo, 30000);
+        function formatPipelineData(stage, data) {
+          if (typeof data === 'string') {
+            return data.slice(0, 200);
+          }
+          if (typeof data === 'object' && data !== null) {
+            switch (stage) {
+              case 'MAIN_LLM':
+                if (data.prompt) return 'Prompt: ' + (data.prompt || '').slice(0,100) + '...';
+                if (data.response) return 'Response: ' + (data.response || '').slice(0,100) + '...';
+                break;
+              case 'TOOL':
+                if (data.cmd) return 'Command: ' + (data.cmd || '').slice(0,100);
+                if (data.output) return 'Output: ' + (data.output || '').slice(0,100);
+                break;
+              case 'MEMORY_EVAL':
+                if (data.fact) return 'Fact: ' + (data.fact || '').slice(0,100) + ' - Score: ' + (data.score || '');
+                break;
+              case 'ERROR':
+                if (data.error) return 'Error: ' + (data.error || '').slice(0,100);
+                if (data.message) return 'Message: ' + (data.message || '').slice(0,100);
+                break;
+              default:
+                return Object.values(data).join(' ').slice(0,200);
+            }
+          }
+          return String(data).slice(0,200);
+        }
+
 </script>
+        <div id="fmContextMenu" class="context-menu"></div>
 </body>
 </html>

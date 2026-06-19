@@ -50,8 +50,7 @@ _CURIOSITY_PROMPT = (
     "You searched for: {topic}\n"
     "Results: {results}\n\n"
     "Summarize the most important fact in ONE sentence under 80 chars.\n"
-    "Start with [F] and end with [8]\n"
-    "Example: [F] The 2026 NBA champion was Oklahoma City Thunder [8]\n\n"
+    "Start with [F] and end with [8]\n\n"
     "Reply with only that one line."
 )
 

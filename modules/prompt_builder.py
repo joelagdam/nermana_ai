@@ -42,7 +42,7 @@ _FORCE_SEARCH_RE = re.compile(
     r'standings|leaderboard|top team|number one right now|ranked|'
     r'who is (the |now |currently )?(?:ceo|president|prime minister|head|'
     r'director|chief|mayor|governor)|who leads|who runs|who heads|'
-    r'election result|who won the election|vote result'
+    r'election result|who won the election|vote result|search'
     r')',
     re.I
 )

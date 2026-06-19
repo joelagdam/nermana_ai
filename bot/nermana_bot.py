@@ -131,12 +131,16 @@ async def stream_response(msg, ctx, chat_id, user_text, system_prompt, history):
         final = final or "\u2026"
         if final != last_sent:
             await msg.edit_text(final)
+            last_sent = final
         return final, None
 
     except Exception as e:
         log_error("STREAM", str(e))
         try:
-            await msg.edit_text("\u26a0\ufe0f Error generating response")
+            error_msg = "\u26a0\ufe0f Error generating response"
+            if error_msg != last_sent:
+                await msg.edit_text(error_msg)
+                last_sent = error_msg
         except Exception:
             pass
         return "", None

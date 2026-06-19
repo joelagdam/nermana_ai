@@ -60,7 +60,7 @@ def record_activity():
 def is_server_awake():
     c = _cfg()
     try:
-        r = requests.get(f"http://{c['llama_host']}:{c['llama_port']}/health", timeout=2)
+        r = requests.get(f"http://{c['llama_host']}:{c['llama_port']}/health", timeout=5)
         return r.status_code == 200
     except:
         return False
@@ -73,36 +73,11 @@ def _run_ctl(arg):
         return False
 
 def ensure_awake(notify=None):
+    """Check if server is awake without attempting to restart it.
+    In the passive learning model, we keep the server awake during idle
+    through background learning intensification rather than sleep/restart cycles."""
     record_activity()
-    if is_server_awake():
-        return True
-    with _wake_lock:
-        if is_server_awake():
-            return True
-        log.info("Server asleep – attempting restart")
-        if notify:
-            try:
-                notify()
-            except:
-                pass
-        time.sleep(2)
-        if is_server_awake():
-            log.info("Server responded after brief wait — no restart needed")
-            return True
-        _run_ctl("stop-server")
-        time.sleep(2)
-        _run_ctl("start-server")
-        c = _cfg()
-        deadline = time.time() + c["wake_timeout"]
-        poll = 2
-        while time.time() < deadline:
-            if is_server_awake():
-                log.info("Server restarted successfully")
-                return True
-            time.sleep(poll)
-            poll = min(poll + 1, 8)
-        log.warning(f"Server failed to wake within {c['wake_timeout']}s")
-        return False
+    return is_server_awake()
 
 def _run_background_reflection():
     """Run a single reflection cycle with conservative settings for background processing"""

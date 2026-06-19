@@ -385,7 +385,7 @@ async def on_message(update, ctx):
 
     force_query = should_force_search(text) if is_online() else None
     if force_query:
-        await update.message.reply_text(f"\ud83d\udd0d {force_query}")
+        searching_msg = await update.message.reply_text(f"\ud83d\udd0d {force_query}")
         results     = await asyncio.to_thread(tools.web_search, force_query)
         result_text = tools.format_search_results(force_query, results)
         mood.record_tool_use("search")
@@ -393,6 +393,7 @@ async def on_message(update, ctx):
         threading.Thread(
             target=_extract_search_facts, args=(force_query, results), daemon=True
         ).start()
+        await searching_msg.edit_text(f"\ud83d\udd0d Got results for: {force_query}\n\u23f3 Reading\u2026")
         conversation_history.append({"role": "user",     "content": text})
         conversation_history.append({"role": "assistant", "content": f"Searching: {force_query}"})
         conversation_history.append({"role": "user",     "content": f"[Search: {force_query}]\n{result_text[:1800]}"})
@@ -400,6 +401,7 @@ async def on_message(update, ctx):
             update, ctx, text,
             tool_result             = result_text[:1800],
             _tool_history_committed = True,
+            _msg                    = searching_msg,
         )
         return
 
@@ -512,12 +514,13 @@ async def cmd_search(u, c):
     if not is_online():
         await u.message.reply_text("Offline \u2013 cannot search.")
         return
-    await u.message.reply_text("Searching\u2026")
+    searching_msg = await u.message.reply_text("Searching\u2026")
     results     = await asyncio.to_thread(tools.web_search, q)
     result_text = tools.format_search_results(q, results)
     mood.record_tool_use("search")
     log_tool_use("search", "user", q, len(result_text))
     threading.Thread(target=_extract_search_facts, args=(q, results), daemon=True).start()
+    await searching_msg.edit_text(f"\ud83d\udd0d Got results for: {q}\n\u23f3 Reading\u2026")
     conversation_history.append({"role": "user",     "content": q})
     conversation_history.append({"role": "assistant", "content": f"Searching: {q}"})
     conversation_history.append({"role": "user",     "content": f"[Search: {q}]\n{result_text[:1800]}"})
@@ -525,6 +528,7 @@ async def cmd_search(u, c):
         u, c, q,
         tool_result             = result_text[:1800],
         _tool_history_committed = True,
+        _msg                    = searching_msg,
     )
 
 async def cmd_exec(u, c):

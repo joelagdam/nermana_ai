@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path.home() / "nermana" / "modules"))
 from llm_client import call, CFG
 from memory_engine import store_memory
-from pipeline_log import log_memory_eval
+from pipeline_log import log_memory_eval, log_llm_call
 
 log = logging.getLogger("memory_llm")
 
@@ -192,6 +192,8 @@ def run(user_message: str, nermana_response: str) -> dict:
         temperature=0.15,
         _bg=True
     )
+    # Log the memory extraction LLM call for pipeline visibility
+    log_llm_call("memory_extraction", f"Conversation:\n{exchange}", raw or "")
 
     raw_lines = (raw or "").strip().splitlines()
     valid = [l.strip() for l in raw_lines if _LINE_RE.match(l.strip())]

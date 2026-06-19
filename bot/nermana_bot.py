@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path.home() / "nermana" / "bot"))
 
 from llm_client import call, call_stream, CFG
 from memory_engine import add_to_buffer, get_stats
-from pipeline_log import log_user_message, log_main_call, log_error, get_recent, log_tool_use
+from pipeline_log import log_user_message, log_error, get_recent, log_tool_use, log_llm_call
 from time_context import get_time_context, get_time_short
 from prompt_builder import build_system_prompt, should_force_search
 import mood, tools, confirm_state as cstate, scheduler, idle_sleep
@@ -230,6 +230,20 @@ async def _run_pipeline(
         response, directive = await stream_response(
             msg, ctx, chat_id, user_text, sys_prompt, history_list
         )
+        # Log the main LLM call for pipeline visibility
+        # Construct approximate full prompt: system + history + current user message
+        full_prompt_parts = []
+        if sys_prompt:
+            full_prompt_parts.append(f"System: {sys_prompt}")
+        if history_list:
+            for msg in history_list:
+                if msg.get("role") == "user":
+                    full_prompt_parts.append(f"User: {msg.get('content', '')}")
+                elif msg.get("role") == "assistant":
+                    full_prompt_parts.append(f"Assistant: {msg.get('content', '')}")
+        full_prompt_parts.append(f"User: {user_text}")
+        full_prompt = "\n\n".join(full_prompt_parts)
+        pipeline_log.log_llm_call("main_llm", full_prompt, response or "")
     finally:
         typing.cancel()
 

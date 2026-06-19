@@ -5,6 +5,7 @@ Nightly LLM-powered self-learning with contradiction resolution.
 import json, logging, re, threading, time
 from pathlib import Path
 
+from modules import pipeline_log
 log = logging.getLogger("reflection")
 
 BASE          = Path.home() / "nermana"
@@ -121,6 +122,9 @@ def _check_contradiction(existing, new_info):
                 existing=existing[:100], new_info=new_info[:100])}],
             max_tokens=40, temperature=0.1, _bg=True
         )
+        # Log the contradiction check LLM call for pipeline visibility
+        pipeline_log.log_llm_call("contradiction_check", _CONTRADICT_PROMPT.format(
+            existing=existing[:100], new_info=new_info[:100]), raw or "")
         raw = (raw or "").strip()
         if raw.upper().startswith("YES"):
             return True, raw[3:].strip().lstrip("- ")[:100]
@@ -169,6 +173,9 @@ def _curiosity_search(topic):
                 topic=topic, results=result_text[:600])}],
             max_tokens=60, temperature=0.1, _bg=True
         )
+        # Log the curiosity search LLM call for pipeline visibility
+        pipeline_log.log_llm_call("curiosity_search", _CURIOSITY_PROMPT.format(
+            topic=topic, results=result_text[:600]), raw or "")
         raw = (raw or "").strip()
         if re.match(r"^\[F\].*\[\d+\]$", raw):
             from memory_engine import store_memory
@@ -202,6 +209,8 @@ def _run_cycle(quality_trigger=False):
         )
         raw    = call([{"role": "user", "content": prompt}],
                       max_tokens=300, temperature=0.3, _bg=True)
+        # Log the reflection LLM call for pipeline visibility
+        pipeline_log.log_llm_call("reflection", prompt, raw or "")
         parsed = _parse_reflection(raw or "")
         log.info(f"Reflection raw: {(raw or '')[:200]}")
 

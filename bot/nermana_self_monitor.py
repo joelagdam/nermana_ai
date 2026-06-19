@@ -5,6 +5,7 @@ v4.6.0
 import json, logging, re, threading, time
 from pathlib import Path
 
+from modules import pipeline_log
 log = logging.getLogger("self_monitor")
 
 BASE          = Path.home() / "nermana"
@@ -52,6 +53,9 @@ def _score_reply(user, bot):
                 user=user[:200], bot=bot[:300])}],
             max_tokens=5, temperature=0.1, _bg=True
         )
+        # Log the quality score LLM call for pipeline visibility
+        pipeline_log.log_llm_call("quality_score", _QUALITY_PROMPT.format(
+            user=user[:200], bot=bot[:300]), raw or "")
         m = re.search(r"[1-5]", raw or "")
         return int(m.group()) if m else 0
     except Exception as e:

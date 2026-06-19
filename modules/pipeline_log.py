@@ -51,5 +51,13 @@ def log_tool_use(tool: str, source: str, query: str = "", result_len: int = 0):
 def log_embedding(fact_id: str):
     _write({"stage": "EMBEDDING", "data": {"fact_id": fact_id}})
 
+
+def log_llm_call(label: str, prompt: str = "", response: str = ""):
+    _write({"stage": "LLM_CALL", "data": {
+        "label": label,
+        "prompt_len": len(prompt),
+        "response": response[:200] if response else ""
+    }})
+
 def get_recent(n=50):
     return list(_events)[-n:]

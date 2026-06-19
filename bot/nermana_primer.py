@@ -54,10 +54,23 @@ def run(user_message: str, conversation_history=None, use_cache: bool = True):
     query_words = _content_words(user_message)
     parts = []
 
+    # 1) Gather facts from three sources: summaries, long‑term, short‑term
+    #    Summaries are already topic‑filtered, so we use a lower threshold (1)
+    summary_facts = []
+    for summ in memory.get("summaries", []):
+        # each summ = {"topic": str, "facts": [str, ...]}
+        for f in summ["facts"]:
+            if _is_relevant(f, query_words, threshold=1):
+                summary_facts.append(f)
+
     lt_raw = memory.get("lt_facts") or []
     lt_relevant = [f for f in lt_raw if _is_relevant(f, query_words, threshold=2)]
-    if lt_relevant:
-        fact_lines = [f"  - {f[:140]}" for f in lt_relevant[:6]]
+
+    # 2) Combine summary facts with long‑term facts (summary facts get priority)
+    combined_facts = summary_facts + lt_relevant
+    if combined_facts:
+        # Take the first 6 – we already have summaries first, so they win ties
+        fact_lines = [f"  - {f[:140]}" for f in combined_facts[:6]]
         parts.append("Known facts:\n" + "\n".join(fact_lines))
 
     st_raw = memory.get("st_facts") or []

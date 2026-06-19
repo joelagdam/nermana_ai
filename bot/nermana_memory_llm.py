@@ -8,7 +8,7 @@ imperative ruleset -- no examples in the prompt body at all.
 
 Everything else (multi-fact, MAX_TOKENS=320, score regex) from v4.7.1.
 """
-import logging, re, sys, threading, time
+import json, logging, re, sys, threading, time
 from pathlib import Path
 
 sys.path.insert(0, str(Path.home() / "nermana" / "modules"))
@@ -25,9 +25,9 @@ Analyze the conversation and extract every distinct fact worth remembering.
 Output one line per fact. Nothing else. No preamble.
 
 Each line must follow this structure:
-- Start with a category tag in square brackets.
+- Start with a category tag in square brackets, followed by a single space.
 - Then a short description of the fact (under 65 characters).
-- End with a relevance score in square brackets (0 through 10).
+- End with a relevance score in square brackets (0 through 10), preceded by a single space.
 
 Category tags to use:
   D for a decision, plan, or commitment made.
@@ -60,12 +60,13 @@ _HEDGE_RE = re.compile(
     r'i\'m guessing|not certain|not sure|i guess|perhaps|roughly|'
     r'approximately|if i recall)\b', re.I
 )
+
 _FACTUAL_TOPIC_RE = re.compile(
     r'\b(what is|who is|when did|how many|where is|define|explain|'
     r'according to|the fact|research|study|data|statistic)\b', re.I
 )
 
-_LINE_RE  = re.compile(r'^\s*\[[DFRPMEdfrtpme]\]\s*.+\[\d{1,2}\]\s*$')
+_LINE_RE  = re.compile(r'^\s*\[[DFRPMEdfrtpme]\]\s+.+\[\d{1,2}\]\s*$')
 _SCORE_RE = re.compile(r'\[(\d{1,2})\]\s*$')
 
 
@@ -83,14 +84,24 @@ def _parse_score(line: str) -> int:
 def heuristic_eval(user, bot):
     combined = (user + " " + bot).lower()
     results = []
-    if any(w in combined for w in ["decided","chosen","going to","will use","switching to"]):
+    # Decision / plan / commitment
+    if any(w in combined for w in ["decided","chosen","going to","will use","switching to",
+                                   "will","plan","intend","aim","commit","agree"]):
         results.append(("[D]", 7))
-    if any(w in combined for w in ["always","never","prefer","like","hate","favorite","love"]):
+    # Preference / opinion / value
+    if any(w in combined for w in ["always","never","prefer","like","hate","favorite","love",
+                                   "favor","enjoy","dislike","desire","value","believe","think"]):
         results.append(("[P]", 6))
-    if any(w in combined for w in ["error","mistake","wrong","failed","bug","crash","broken"]):
+    # Mistake / error / bug
+    if any(w in combined for w in ["error","mistake","wrong","failed","bug","crash","broken",
+                                   "issue","problem","fault","glitch","fail"]):
         results.append(("[M]", 5))
-    if any(w in combined for w in ["learned","discovered","found out","realized","turns out"]):
+    # Learned / discovered / factual
+    if any(w in combined for w in ["learned","discovered","found out","realized","turns out",
+                                   "won","beat","defeated","champion","finals","score","record",
+                                   "lead","top","first","second"]):
         results.append(("[F]", 7))
+    # Fallback: if we still have nothing but the bot response is substantial, give a low‑confidence fact
     if not results and len(bot.strip()) > 80:
         results.append(("[F]", 4))
     output = []
@@ -98,6 +109,60 @@ def heuristic_eval(user, bot):
         line = f"{tag} {user[:60]} [{score}]"
         output.append((line, score))
     return output
+
+
+def gather_tool_facts():
+    """Gather facts from recent tool calls in the pipeline log."""
+    pipeline_path = Path.home() / "nermana" / "logs" / "pipeline.jsonl"
+    if not pipeline_path.exists():
+        return []
+    now = time.time()
+    cutoff = now - 10  # Look back 10 seconds
+    facts = []
+    try:
+        lines = pipeline_path.read_text(encoding="utf-8").splitlines()
+        # Iterate from the end (most recent) backwards
+        for line in reversed(lines):
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            ts = event.get("ts", 0)
+            if ts < cutoff:
+                break  # We've gone far enough back
+            stage = event.get("stage")
+            data = event.get("data", {})
+            if stage == "TOOL":
+                tool_type = data.get("tool")
+                if tool_type in {"search", "exec", "weather"}:
+                    if tool_type == "search":
+                        query = data.get("query", "")
+                        results = data.get("results", [])
+                        snippet = ""
+                        if results and isinstance(results, list) and len(results) > 0:
+                            first = results[0]
+                            if isinstance(first, dict):
+                                snippet = first.get("snippet", "") or first.get("title", "") or str(first)[:200]
+                            else:
+                                snippet = str(first)[:200]
+                        else:
+                            snippet = "No results"
+                        fact = f"[F] Search results for '{query}': {snippet[:200]} [5]"
+                    elif tool_type == "exec":
+                        cmd = data.get("cmd", "")
+                        output = data.get("output", "")
+                        fact = f"[F] Terminal command '{cmd}' output: {output[:200]} [5]"
+                    elif tool_type == "weather":
+                        # Weather data structure unknown; stringify cautiously
+                        fact = f"[F] Weather: {str(data)[:200]} [5]"
+                    facts.append((fact, 5))
+            elif stage == "ERROR":
+                error_msg = data.get("error", "") or data.get("message", "") or str(data)
+                fact = f"[M] Error: {error_msg[:200]} [2]"
+                facts.append((fact, 2))
+    except Exception as e:
+        log.debug(f"gather_tool_facts failed: {e}")
+    return facts
 
 
 def _background_verify(topic_hint):
@@ -137,10 +202,19 @@ def run(user_message: str, nermana_response: str) -> dict:
     else:
         pairs = [(l, _parse_score(l)) for l in valid[:4]]
 
+    # Gather tool facts from the pipeline
+    tool_facts = gather_tool_facts()
+    pairs.extend(tool_facts)
+
     stored_facts = []
+    seen = set()
     for line, score in pairs:
         if score < 1:
             continue
+        key = line.lower().strip()
+        if key in seen:
+            continue
+        seen.add(key)
         tier = "long_term" if score >= 7 else "short_term" if score >= 4 else "junk"
         store_memory(line, score, user_ctx=user_message)
         log_memory_eval(exchange, raw or "", line, score, tier)

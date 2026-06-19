@@ -1075,57 +1075,103 @@ def api_version():
 
 @app.route('/api/update/check', methods=['POST'])
 def api_update_check():
-    """Fetch from remote and report behind count."""
-    if not (BASE / ".git").exists():
-        return jsonify({"status": "error", "error": "no git repository"})
-    rc, _, err = _git(["fetch", "--tags", "origin"], timeout=60)
-    if rc != 0:
-        return jsonify({"status": "error", "error": f"git fetch failed: {err[:200]}"})
-    # Now count behind
-    rc, out, _ = _git(["rev-list", "--count", "HEAD..origin/main"], timeout=10)
-    if rc != 0:
-        # Try master instead of main
-        rc, out, _ = _git(["rev-list", "--count", "HEAD..origin/master"], timeout=10)
-    if rc != 0:
-        return jsonify({"status": "error", "error": "cannot compare with remote (shallow clone?)"})
-    behind = int(out) if out else 0
-    # Get recent log
-    _, history, _ = _git(["log", "--oneline", "-5"])
-    return jsonify({
-        "status": "ok",
-        "behind": behind,
-        "can_update": behind > 0,
-        "history": history.splitlines() if history else [],
-        "current_version": _current_version(),
-    })
+    """Fetch from remote and report behind count, with fallback to GitHub API."""
+    if (BASE / ".git").exists():
+        # existing git-based logic
+        rc, _, err = _git(["fetch", "--tags", "origin"], timeout=60)
+        if rc != 0:
+            return jsonify({"status": "error", "error": f"git fetch failed: {err[:200]}"})
+        # Now count behind
+        rc, out, _ = _git(["rev-list", "--count", "HEAD..origin/main"], timeout=10)
+        if rc != 0:
+            # Try master instead of main
+            rc, out, _ = _git(["rev-list", "--count", "HEAD..origin/master"], timeout=10)
+        if rc != 0:
+            return jsonify({"status": "error", "error": "cannot compare with remote (shallow clone?)"})
+        behind = int(out) if out else 0
+        # Get recent log
+        _, history, _ = _git(["log", "--oneline", "-5"])
+        return jsonify({
+            "status": "ok",
+            "behind": behind,
+            "can_update": behind > 0,
+            "history": history.splitlines() if history else [],
+            "current_version": _current_version(),
+        })
+    else:
+        # Fallback: use GitHub Releases API
+        try:
+            import requests as _req
+            r = _req.get(
+                "https://api.github.com/repos/joelagdam/nermana_ai/releases/latest",
+                timeout=10,
+                headers={"Accept": "application/vnd.github+json"},
+            )
+            r.raise_for_status()
+            data = r.json()
+            latest_tag = data["tag_name"]
+            # strip leading 'v' if present
+            if latest_tag.startswith('v'):
+                latest_tag = latest_tag[1:]
+            current = _current_version()
+            behind = 0 if latest_tag == current else 1
+            return jsonify({
+                "status": "ok",
+                "behind": behind,
+                "can_update": behind > 0,
+                "history": [f"Latest release: {latest_tag}"],
+                "current_version": current,
+                "git_ok": False,
+            })
+        except Exception as e:
+            return jsonify({"status": "error", "error": str(e)}), 500
 
 @app.route('/api/update/pull', methods=['POST'])
 def api_update_pull():
-    out = _run(f"cd {BASE} && git pull --ff-only 2>&1")
-    # Refresh VERSION after pull
-    return jsonify({
-        "status": "done",
-        "output": out[-500:],
-        "version": _current_version(),
-    })
+    """Fast-forward pull, fallback to reinstall."""
+    if (BASE / ".git").exists():
+        out = _run(f"cd {BASE} && git pull --ff-only 2>&1")
+        # Refresh VERSION after pull
+        return jsonify({
+            "status": "done",
+            "output": out[-500:],
+            "version": _current_version(),
+        })
+    else:
+        # No git, fallback to reinstall (downloading latest)
+        out = _run(f"cd {BASE} && bash install.sh --quick 2>&1", timeout=600)
+        return jsonify({
+            "status": "done",
+            "output": out[-500:],
+            "version": _current_version(),
+            "message": "No git repo, reinstalled latest version"
+        })
 
 @app.route('/api/update/rollback', methods=['POST'])
 def api_update_rollback():
-    steps = request.json.get("steps", 1) if request.json else 1
-    try: steps = max(1, min(int(steps), 10))
-    except: steps = 1
-    # Check how far back we can go
-    rc, total, _ = _git(["rev-list", "--count", "HEAD"])
-    total = int(total) if rc == 0 and total else 0
-    if total <= steps:
-        return jsonify({"status": "error", "output": f"Only {total} commit(s) available, cannot go back {steps}"})
-    out = _run(f"cd {BASE} && git checkout HEAD~{steps} 2>&1")
-    new_ver = _current_version()
-    return jsonify({
-        "status": "done" if "error" not in out.lower() else "error",
-        "output": out[-500:],
-        "version": new_ver,
-    })
+    """Rollback N steps (default 1)."""
+    if (BASE / ".git").exists():
+        steps = request.json.get("steps", 1) if request.json else 1
+        try: steps = max(1, min(int(steps), 10))
+        except: steps = 1
+        # Check how far back we can go
+        rc, total, _ = _git(["rev-list", "--count", "HEAD"])
+        total = int(total) if rc == 0 and total else 0
+        if total <= steps:
+            return jsonify({"status": "error", "output": f"Only {total} commit(s) available, cannot go back {steps}"})
+        out = _run(f"cd {BASE} && git checkout HEAD~{steps} 2>&1")
+        new_ver = _current_version()
+        return jsonify({
+            "status": "done" if "error" not in out.lower() else "error",
+            "output": out[-500:],
+            "version": new_ver,
+        })
+    else:
+        # No git, rollback not meaningful; suggest reinstall
+        return jsonify({
+            "status": "ok",
+            "message": "No git repo, rollback not available; consider reinstall"
+        }), 200
 
 @app.route('/api/reinstall', methods=['POST'])
 def api_reinstall():

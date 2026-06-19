@@ -76,6 +76,59 @@ def _clean(text: str) -> str:
     text = re.sub(r'^\s*(NERMANA:|Assistant:|AI:)\s*', '', text, flags=re.I)
     return ' '.join(text.split())[:500]
 
+
+def _heuristic_reply(query: str) -> str | None:
+    """Return a direct answer for simple factual queries without LLM if confident."""
+    # Only for short, question-like queries
+    q = query.strip().lower()
+    if not q or len(q) > 60:
+        return None
+    # Simple interrogative patterns
+    if not (q.startswith("what is ") or q.startswith("who is ") or q.startswith("where is ") or
+            q.startswith("when is ") or q.startswith("how many ") or q.startswith("define ") or
+            q.startswith("explain ")):
+        return None
+    # Try to get a concise answer from web search
+    try:
+        if not is_online():
+            return None
+        results = tools.web_search(query, n=2)
+        if not results:
+            return None
+        # Score each result by presence of query terms in snippet+title
+        query_words = set(re.findall(r'\b[a-zA-Z0-9_]{3,}\b', q))
+        STOP = {"the","and","for","you","this","that","with","from","are","was",
+                "have","not","its","can","will","does","did","but","just","like",
+                "what","who","when","where","why","how","is","of","in","on","at","to"}
+        query_words = query_words - STOP
+        best_snippet = ""
+        best_score = -1
+        for r in results:
+            if not isinstance(r, dict):
+                continue
+            text = (r.get('snippet', '') + ' ' + r.get('title', '')).lower()
+            words_in = set(re.findall(r'\b[a-zA-Z0-9_]{3,}\b', text))
+            score = len(query_words & words_in)
+            if score > best_score:
+                best_score = score
+                best_snippet = r.get('snippet', '').strip()
+                if not best_snippet:
+                    best_snippet = r.get('title', '').strip()
+        if not best_snippet or best_score < 1:
+            return None
+        # Heuristic: if snippet contains a pattern like "X is Y" where X is the query topic
+        # Extract a short answer: first sentence up to 200 chars
+        # Take first sentence
+        import re
+        sentences = re.split(r'(?<=[.!?])\s+', best_snippet)
+        answer = sentences[0] if sentences else best_snippet
+        if len(answer) > 200:
+            answer = answer[:200] + '...'
+        # Prepend a natural phrase
+        return f"According to search: {answer}"
+    except Exception:
+        return None
+
 async def stream_response(msg, ctx, chat_id, user_text, system_prompt, history):
     full       = ""
     last_sent  = ""
@@ -349,6 +402,17 @@ async def on_message(update, ctx):
     mood.record_message(text)
     tools.set_offline_mode(not is_online())
     chat_id = update.effective_chat.id
+
+    # Try heuristic reply for simple factual queries
+    if is_online():
+        heuristic = _heuristic_reply(text)
+        if heuristic:
+            await update.message.reply_text(heuristic)
+            # Log exchange for memory and context
+            conversation_history.append({"role": "user", "content": text})
+            conversation_history.append({"role": "assistant", "content": heuristic})
+            add_to_buffer(text, heuristic)
+            return
 
     pending = cstate.get_pending(chat_id)
     if pending:

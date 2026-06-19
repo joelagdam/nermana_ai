@@ -140,11 +140,24 @@ def gather_tool_facts():
                         results = data.get("results", [])
                         snippet = ""
                         if results and isinstance(results, list) and len(results) > 0:
-                            first = results[0]
-                            if isinstance(first, dict):
-                                snippet = first.get("snippet", "") or first.get("title", "") or str(first)[:200]
-                            else:
-                                snippet = str(first)[:200]
+                            # Heuristic: pick result with highest query word overlap
+                            qwords = set(re.findall(r'\b[a-zA-Z0-9_]{3,}\b', query.lower()))
+                            STOP = {"the","and","for","you","this","that","with","from","are","was",
+                                    "have","not","its","can","will","does","did","but","just","like",
+                                    "what","who","when","where","why","how","is","of","in","on","at","to"}
+                            qwords = qwords - STOP
+                            best_score = -1
+                            best_snippet = ""
+                            for r in results:
+                                if not isinstance(r, dict):
+                                    continue
+                                text = (r.get('snippet', '') + ' ' + r.get('title', '')).lower()
+                                words_in = set(re.findall(r'\b[a-zA-Z0-9_]{3,}\b', text))
+                                score = len(qwords & words_in)
+                                if score > best_score:
+                                    best_score = score
+                                    best_snippet = r.get('snippet', '') or r.get('title', '')
+                            snippet = best_snippet[:200] if best_snippet else ""
                         else:
                             snippet = "No results"
                         fact = f"[F] Search results for '{query}': {snippet[:200]} [5]"

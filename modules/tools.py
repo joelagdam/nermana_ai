@@ -98,12 +98,44 @@ def web_search(query, n=None):
     except:
         return []
 
+def _query_words(text):
+    """Extract meaningful words from a query for heuristic matching."""
+    import re
+    STOP = {"the","and","for","you","this","that","with","from","are","was",
+            "have","not","its","can","will","does","did","but","just","like",
+            "what","who","when","where","why","how","is","of","in","on","at","to"}
+    words = set(re.findall(r'\b[a-zA-Z0-9_]{3,}\b', text.lower()))
+    return words - STOP
+
 def format_search_results(query, results):
     if not results:
         return f"No results for: {query}"
+    # Heuristic: rank results by snippet relevance to query words
+    qwords = _query_words(query)
+    scored = []
+    for r in results:
+        snippet = r.get('snippet', '').lower()
+        title = r.get('title', '').lower()
+        # Simple score: count of query words in snippet + title
+        score = sum(1 for w in qwords if w in snippet) + sum(1 for w in qwords if w in title)
+        scored.append((score, r))
+    # Sort descending by score, take top 2
+    scored.sort(key=lambda x: x[0], reverse=True)
+    top_results = [r for _, r in scored[:2]]
     lines = [f"Top results for \"{query}\":"]
-    for i, r in enumerate(results, 1):
-        lines.append(f"{i}. {r.get('title')} — {r.get('url')}\n   {r.get('snippet', '')[:150]}")
+    for i, r in enumerate(top_results, 1):
+        # Provide concise info: title and a short snippet
+        title = r.get('title', '')[:80]
+        snippet = r.get('snippet', '').strip()
+        # Take first 2 sentences or up to 200 chars
+        if snippet:
+            # Split by sentence endings
+            import re
+            sentences = re.split(r'(?<=[.!?])\s+', snippet)
+            snippet = ' '.join(sentences[:2])  # first two sentences
+            if len(snippet) > 200:
+                snippet = snippet[:200] + '...'
+        lines.append(f"{i}. {title}: {snippet}")
     return "\n".join(lines)
 
 def is_command_allowed(cmd):

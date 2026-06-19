@@ -2466,6 +2466,7 @@ function fmOpen(name, isDir) {
     fmLoad();
   } else {
     _fmFile = _fmPath ? _fmPath + '/' + name : name;
+    _fmPath = _fmFile; // ensure fmLoad loads the file
     fmLoad();
   }
 }

@@ -3,6 +3,8 @@ from pathlib import Path
 from collections import deque
 from datetime import datetime, timedelta
 
+from modules import pipeline_log
+
 log = logging.getLogger("memory_engine")
 
 BASE = Path.home() / "nermana"
@@ -140,6 +142,7 @@ def store_memory(line: str, score: int, user_ctx: str = ""):
             f.write(line + "\n")
         fact_id = f"{int(time.time())}_{abs(hash(line)) % 999999}"
         store_embedding(fact_id, line)
+        pipeline_log.log_embedding(fact_id)
 
         # NEW: Also update summary for this fact
         topic = _extract_topic_from_fact(line)

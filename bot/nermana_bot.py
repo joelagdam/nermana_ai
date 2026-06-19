@@ -427,9 +427,51 @@ async def cmd_test(u, c):
 
 async def cmd_pipeline(u, c):
     ev = get_recent(5)
-    await u.message.reply_text(
-        "\n".join([f"{e.get('stage')}: {str(e.get('data',''))[:60]}"
-                   for e in ev]) or "No events")
+    if not ev:
+        await u.message.reply_text("No events")
+        return
+
+    lines = []
+    for e in ev:
+        stage = e.get('stage', 'UNKNOWN')
+        data = e.get('data', {})
+        if stage == 'USER':
+            msg = data.get('message', '')
+            lines.append(f"👤 USER: {msg[:80]}{'...' if len(msg)>80 else ''}")
+        elif stage == 'MEMORY_QUERY':
+            query = data.get('query', '')
+            lt_count = data.get('lt_facts_count', 0)
+            lines.append(f"🔍 MEMORY_QUERY: '{query}' → {lt_count} long-term facts")
+        elif stage == 'PRIMER_CALL':
+            source = data.get('source', '')
+            briefing_len = data.get('briefing_len', 0)
+            result_preview = data.get('result', '')[:80]
+            lines.append(f"🧠 PRIMER_CALL[{source}] len={briefing_len}: {result_preview}{'...' if len(data.get('result',''))>80 else ''}")
+        elif stage == 'MAIN_LLM':
+            response = data.get('response', '')
+            lines.append(f"💬 MAIN_LLM RESPONSE: {response[:120]}{'...' if len(response)>120 else ''}")
+        elif stage == 'MEMORY_EVAL':
+            stored = data.get('stored', '')
+            score = data.get('score', 0)
+            tier = data.get('tier', '')
+            lines.append(f"🧮 MEMORY_EVAL: [{tier}] score={score} → {stored[:80]}{'...' if len(stored)>80 else ''}")
+        elif stage == 'ERROR':
+            where = data.get('where', '')
+            message = data.get('message', '')
+            lines.append(f"❌ ERROR[{where}]: {message[:80]}{'...' if len(message)>80 else ''}")
+        elif stage == 'TOOL_USE':
+            tool = data.get('tool', '')
+            source = data.get('source', '')
+            query = data.get('query', '')
+            result_len = data.get('result_len', 0)
+            lines.append(f"🔧 TOOL_USE[{tool}] by {source}: query='{query}' → {result_len} chars")
+        elif stage == 'EMBEDDING':
+            fact_id = data.get('fact_id', '')
+            lines.append(f"🔢 EMBEDDING: fact_id={fact_id}")
+        else:
+            # fallback
+            lines.append(f"{stage}: {str(data)[:100]}")
+    await u.message.reply_text("\n".join(lines))
 
 async def cmd_time(u, c):
     await u.message.reply_text(get_time_short())

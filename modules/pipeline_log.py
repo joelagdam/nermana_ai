@@ -47,5 +47,9 @@ def log_tool_use(tool: str, source: str, query: str = "", result_len: int = 0):
         "result_len": result_len
     }})
 
+
+def log_embedding(fact_id: str):
+    _write({"stage": "EMBEDDING", "data": {"fact_id": fact_id}})
+
 def get_recent(n=50):
     return list(_events)[-n:]

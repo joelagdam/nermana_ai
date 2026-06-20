@@ -960,22 +960,37 @@ async function loadVersion() {
     const cur = $('v-current');
     const com = $('v-commit');
     const beh = $('v-behind');
+
+    // Always update version and commit info
     if (cur) cur.textContent = v.current_version || '—';
     if (com) com.textContent = v.git_ok ? '#' + (v.commit || '—') : '—';
+
+    // Only update behind badge if it's in an idle state (not showing check/update status)
     if (beh) {
-      if (!v.git_ok) {
-        beh.textContent = 'no git repo';
-        beh.className = 'badge badge-dim';
-      } else {
-        beh.textContent = 'tap Check';
-        beh.className = 'badge badge-dim';
+      const behText = beh.textContent.trim();
+      const behClass = beh.className;
+
+      // Define idle states that load_version can safely update
+      const isIdleState =
+        behText === '' ||                                    // Initial empty state
+        behText === 'no git repo' && behClass.includes('badge-dim') ||  // Not a git repo
+        behText === 'tap Check' && behClass.includes('badge-dim');      // Git repo, ready to check
+
+      if (isIdleState) {
+        if (!v.git_ok) {
+          beh.textContent = 'no git repo';
+          beh.className = 'badge badge-dim';
+        } else {
+          beh.textContent = 'tap Check';
+          beh.className = 'badge badge-dim';
+        }
       }
+      // If not idle state (checking..., up to date, # behind, etc.), leave it alone
     }
-    const btn = $('btn-update');
-    if (btn) btn.style.display = 'none';
   } catch (e) {
     const cur = $('v-current');
     if (cur) cur.textContent = 'error';
+    // Don't modify behind/badge on version load error to preserve update check state
   }
 }
 

@@ -1286,16 +1286,32 @@ def api_update_check():
 def api_update_pull():
     """Fast-forward pull, fallback to reinstall."""
     if (BASE / ".git").exists():
-        out = _run(f"cd {BASE} && git pull --ff-only 2>&1")
-        # Refresh VERSION after pull
-        return jsonify({
-            "status": "done",
-            "output": out[-500:],
-            "version": _current_version(),
-        })
+        # Run git pull and check if it succeeded
+        rc, out, err = _git(["pull", "--ff-only"], timeout=60)
+        if rc == 0:
+            # Refresh VERSION after pull
+            return jsonify({
+                "status": "done",
+                "output": out[-500:] if out else "Already up to date",
+                "version": _current_version(),
+            })
+        else:
+            # Pull failed
+            return jsonify({
+                "status": "error",
+                "error": err or out or "Unknown error during pull",
+                "output": (err or out)[-500:] if (err or out) else "",
+            })
     else:
         # No git, fallback to reinstall (downloading latest)
         out = _run(f"cd {BASE} && bash install.sh --quick 2>&1", timeout=600)
+        # Check if reinstall succeeded by looking for error indicators
+        if "error" in out.lower() or "failed" in out.lower():
+            return jsonify({
+                "status": "error",
+                "error": "Reinstall failed",
+                "output": out[-500:],
+            })
         return jsonify({
             "status": "done",
             "output": out[-500:],

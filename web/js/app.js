@@ -692,6 +692,19 @@ async function loadModels() {
     let recHtml = '';
     const presets = [];
     for (const m of r.models) {
+      // Parse filename for additional info (size, format) if possible
+      let sizeInfo = m.size || '';
+      let formatInfo = '';
+      if (m.file) {
+        // Try to extract size and quantization from filename like "model-7b-Q4_K_M.gguf"
+        const match = m.file.match(/(\d+[bm])\b/i);
+        if (match) sizeInfo = match[1].toUpperCase() + (match[1].endsWith('b') ? 'B' : '');
+        const quantMatch = m.file.match(/(_Q\d+[_K]?_[\w]+)\.gguf$/i);
+        if (quantMatch) formatInfo = quantMatch[1].toUpperCase();
+      }
+      const displaySize = sizeInfo || (m.size || '');
+      const displayFormat = formatInfo || 'GGUF';
+
       if (m.custom) {
         const st = m.present
           ? (m.valid ? '<span class="badge badge-green">✓</span>' : '<span class="badge badge-red">⚠</span>')
@@ -701,9 +714,14 @@ async function loadModels() {
         if (m.present && m.valid && !m.active) btns.push('<button class="btn btn-sm btn-primary" onclick="switchModel(\'' + esc(m.file) + '\',\'' + esc(m.name) + '\')">⇄ Switch</button>');
         if (m.present) btns.push('<button class="btn btn-sm btn-danger" onclick="deleteModel(\'' + esc(m.file) + '\')">🗑 Delete</button>');
         if (m.present && !m.valid) btns.push('<button class="btn btn-sm" onclick="redownloadModel(\'' + esc(m.file) + '\')">↻ Re-download</button>');
-        installedHtml += '<div class="mcard"><div class="mcard-top"><span class="mcard-name">' + esc(m.name) + ' ' + act + ' ' + st + '</span></div>'
-          + '<div class="mcard-meta"><span>' + (m.size || '') + '</span></div>'
-          + '<div class="mcard-actions">' + btns.join('') + '</div></div>';
+        // Make the model name clickable to switch (if not active)
+        const titleClick = m.present && m.valid && !m.active
+          ? 'onclick="switchModel(\'' + esc(m.file) + '\',\'' + esc(m.name) + '\')"'
+          : '';
+        installedHtml += '<div class="mcard' + (m.active ? ' active-model' : '') + '"><div class="mcard-header">' +
+          '<div class="mcard-title" ' + titleClick + '>' + esc(m.name) + ' ' + act + ' ' + st + '</div>' +
+          '<div class="mcard-subtitle">' + displaySize + ' ' + displayFormat + '</div>' +
+          '</div><div class="mcard-actions">' + btns.join('') + '</div></div>';
         continue;
       }
       presets.push(m);
@@ -716,17 +734,34 @@ async function loadModels() {
       if (m.present) btns.push('<button class="btn btn-sm btn-danger" onclick="deleteModel(\'' + esc(m.file) + '\')">🗑 Delete</button>');
       if (m.present && !m.valid) btns.push('<button class="btn btn-sm" onclick="redownloadModel(\'' + esc(m.file) + '\')">↻ Re-download</button>');
       if (!m.present) btns.push('<button class="btn btn-sm btn-primary" onclick="startDownload(\'' + esc(m.file) + '\',\'' + esc(m.url) + '\',\'' + esc(m.name) + '\')">⬇ Download</button>');
-      installedHtml += '<div class="mcard"><div class="mcard-top"><span class="mcard-name">' + esc(m.name) + ' ' + act + ' ' + st + '</span></div>'
-        + '<div class="mcard-meta"><span>' + (m.size || '') + '</span></div>'
-        + '<div class="mcard-actions">' + btns.join('') + '</div></div>';
+      // Make the model name clickable to switch (if not active and present)
+      const titleClick = m.present && m.valid && !m.active
+        ? 'onclick="switchModel(\'' + esc(m.file) + '\',\'' + esc(m.name) + '\')"'
+        : '';
+      installedHtml += '<div class="mcard' + (m.active ? ' active-model' : '') + '"><div class="mcard-header">' +
+        '<div class="mcard-title" ' + titleClick + '>' + esc(m.name) + ' ' + act + ' ' + st + '</div>' +
+        '<div class="mcard-subtitle">' + displaySize + ' ' + displayFormat + '</div>' +
+        '</div><div class="mcard-actions">' + btns.join('') + '</div></div>';
     }
     const recs = presets.filter((mn) => !mn.present);
     if (recs.length) {
-      recHtml = recs.map((mn) =>
-        '<div class="mcard" style="background:var(--surface)"><div class="mcard-top"><span class="mcard-name">' + esc(mn.name) + '</span>'
-        + '<span class="badge badge-dim">' + (mn.size || '') + '</span></div>'
-        + '<div class="mcard-actions"><button class="btn btn-sm btn-primary" onclick="startDownload(\'' + esc(mn.file) + '\',\'' + esc(mn.url) + '\',\'' + esc(mn.name) + '\')">⬇ Download</button></div></div>'
-      ).join('');
+      recHtml = recs.map((mn) => {
+        // Parse filename for recommended models too
+        let recSizeInfo = mn.size || '';
+        let recFormatInfo = '';
+        if (mn.file) {
+          const match = mn.file.match(/(\d+[bm])\b/i);
+          if (match) recSizeInfo = match[1].toUpperCase() + (match[1].endsWith('b') ? 'B' : '');
+          const quantMatch = mn.file.match(/(_Q\d+[_K]?_[\w]+)\.gguf$/i);
+          if (quantMatch) recFormatInfo = quantMatch[1].toUpperCase();
+        }
+        const displaySize = recSizeInfo || (mn.size || '');
+        const displayFormat = recFormatInfo || 'GGUF';
+        return '<div class="mcard" style="background:var(--surface)"><div class="mcard-header">' +
+          '<div class="mcard-title">' + esc(mn.name) + '</div>' +
+          '<div class="mcard-subtitle">' + displaySize + ' ' + displayFormat + '</div>' +
+          '</div><div class="mcard-actions"><button class="btn btn-sm btn-primary" onclick="startDownload(\'' + esc(mn.file) + '\',\'' + esc(mn.url) + '\',\'' + esc(mn.name) + '\')">⬇ Download</button></div></div>';
+      }).join('');
     } else {
       recHtml = '<div class="dim" style="padding:8px 0;font-size:12px">All recommended models are installed.</div>';
     }
@@ -755,12 +790,16 @@ async function redownloadModel(file) {
   if (_dlPoll) { toast('Download in progress', 'info'); return; }
   showModal('Re-download', 'Download ' + file + ' again? Existing file will be overwritten.', 'Re-download', async () => {
     try {
-      const r = await fetch('/api/models/download', {
+      const resp = await fetch('/api/models/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file, url: '', force: true }),
-      }).then((r) => r.json());
-      if (r.error) { toast(r.error, 'err'); return; }
+      });
+      const r = await resp.json();
+      if (!resp.ok) {
+        toast(r.error || resp.statusText, 'err');
+        return;
+      }
       toast('Re-downloading: ' + file, 'info');
       pollDownload();
     } catch (e) { toast(e.message, 'err'); }
@@ -806,8 +845,11 @@ function pollDownload() {
 async function switchModel(file, name) {
   showModal('Switch Model', 'Switch to <b>' + esc(name) + '</b>?<br>The LLM server will restart.', 'Switch', async () => {
     try {
-      const r = await api('/api/models/switch', { method: 'POST', body: JSON.stringify({ file, name }) });
+      await api('/api/models/switch', { method: 'POST', body: JSON.stringify({ file, name }) });
       toast('Switched to ' + name);
+      // Update dashboard immediately
+      const modelEl = $('dash-model');
+      if (modelEl) modelEl.textContent = name;
       setTimeout(loadModels, 4000);
     } catch (e) { toast(e.message, 'err'); }
   });
@@ -816,7 +858,7 @@ async function switchModel(file, name) {
 async function deleteModel(file) {
   showModal('Delete Model', 'Delete <b>' + esc(file) + '</b>?<br>This cannot be undone.', 'Delete', async () => {
     try {
-      const r = await api('/api/models/delete', { method: 'POST', body: JSON.stringify({ file }) });
+      await api('/api/models/delete', { method: 'POST', body: JSON.stringify({ file }) });
       toast('Deleted: ' + file);
       loadModels();
     } catch (e) { toast(e.message, 'err'); }

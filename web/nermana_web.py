@@ -146,6 +146,25 @@ _web_history      = []
 _web_history_lock = threading.Lock()
 _MAX_HISTORY      = 200
 
+# Online status cache for performance
+_online_cache = {"ok": False, "ts": 0.0}
+_ONLINE_TTL = 5.0  # seconds
+
+def _is_online_cached():
+    global _online_cache
+    now = time.time()
+    if _online_cache["ok"] and (now - _online_cache["ts"]) < _ONLINE_TTL:
+        return _online_cache["ok"]
+    # Check online status
+    try:
+        socket.create_connection(("8.8.8.8", 53), timeout=1)
+        result = True
+    except Exception:
+        result = False
+    _online_cache["ok"] = result
+    _online_cache["ts"] = now
+    return result
+
 def _trim_history():
     with _web_history_lock:
         while len(_web_history) > _MAX_HISTORY:
@@ -389,7 +408,7 @@ def api_chat():
         return jsonify({"error": "empty"}), 400
 
     cfg    = _read_cfg()
-    online = _is_online()
+    online = _is_online_cached()
 
     # Snapshot history for this request BEFORE appending the new user message
     with _web_history_lock:

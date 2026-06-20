@@ -254,6 +254,23 @@ case "$1" in
         curl -s "http://$LLAMA_HOST:$LLAMA_EMBED_PORT/health" >/dev/null && ok "Embedding online" || warn "Embedding offline"
         pgrep -f "nermana_bot.py" >/dev/null && ok "Bot running" || fail "Bot stopped"
         ;;
+    update)
+        cd "$NERMANA_DIR"
+        info "Updating NERMANA from GitHub..."
+        # Fetch and pull changes
+        if ! git fetch origin 2>/dev/null; then
+            fail "Failed to fetch from GitHub"
+        fi
+        # Check if there are updates
+        if git diff --quiet HEAD origin/master 2>/dev/null; then
+            ok "Already up to date"
+        else
+            if ! git pull origin master 2>/dev/null; then
+                fail "Failed to pull updates"
+            fi
+            ok "Update successful. Please restart services: nermana restart"
+        fi
+        ;;
     reset) rm -rf "$NERMANA_DIR/memory/long_term" "$NERMANA_DIR/memory/short_term" "$NERMANA_DIR/memory/buffer" "$NERMANA_DIR/knowledge/facts.txt" "$NERMANA_DIR/memory/embeddings/vectors.db"; mkdir -p "$NERMANA_DIR/memory/long_term" "$NERMANA_DIR/memory/short_term" "$NERMANA_DIR/memory/buffer"; ok "Memory cleared" ;;
-    *) echo "Usage: nermana {start|stop|restart|web|web-stop|status|reset|patch|modules|summaries}" ;;
+    *) echo "Usage: nermana {start|stop|restart|web|web-stop|status|reset|update|patch|modules|summaries}" ;;
 esac

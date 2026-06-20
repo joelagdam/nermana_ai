@@ -17,6 +17,7 @@ import nermana_memory_llm as memory_llm
 import nermana_self_monitor as self_monitor
 import reflection_engine
 from diagnostics import start_diagnostic_loop
+import momentum
 
 try:
     from semantic_memory import init_semantic_memory
@@ -297,6 +298,38 @@ async def _run_pipeline(
         full_prompt_parts.append(f"User: {user_text}")
         full_prompt = "\n\n".join(full_prompt_parts)
         pipeline_log.log_llm_call("main_llm", full_prompt, response or "")
+
+        # Update conversational momentum for self-learning
+        try:
+            # Estimate metrics for momentum update
+            # Confidence: higher if we got a substantial response without errors
+            confidence = 800 if response and len(response.strip()) > 10 else 300  # 0.8 or 0.3 in Q10
+
+            # Complexity: based on question length and question words
+            question_words = len(re.findall(r'\b(what|who|when|where|why|how|which)\b', user_text.lower()))
+            text_length = len(user_text)
+            complexity = min(1000, (question_words * 150) + (text_length // 2))  # Cap at 1000
+
+            # Specificity: count personal references and named entities
+            personal_refs = len(re.findall(r'\b(i|me|my|mine|you|your|yours)\b', user_text.lower()))
+            specificity = min(1000, personal_refs * 200)  # Cap at 1000
+
+            # Latency: approximate based on response characteristics
+            # This is a simplified estimation - in practice we'd measure actual time
+            if response and len(response.strip()) > 50:
+                latency = 400  # Moderate latency for substantial response
+            elif response:
+                latency = 200  # Low latency for short response
+            else:
+                latency = 800  # High latency for failed/empty response
+
+            # Expected latency: based on what we think should have happened
+            # Simple heuristic: if we used heuristic, expect low latency; if LLM, expect higher
+            expected_latency = 300  # Baseline expectation
+
+            momentum.update_exchange(confidence, complexity, specificity, latency, expected_latency)
+        except Exception:
+            pass  # Don't let momentum updates break the main flow
     finally:
         typing.cancel()
 
@@ -403,16 +436,25 @@ async def on_message(update, ctx):
     tools.set_offline_mode(not is_online())
     chat_id = update.effective_chat.id
 
-    # Try heuristic reply for simple factual queries
+    # Try heuristic reply for simple factual queries (adjusted by momentum)
     if is_online():
-        heuristic = _heuristic_reply(text)
-        if heuristic:
-            await update.message.reply_text(heuristic)
-            # Log exchange for memory and context
-            conversation_history.append({"role": "user", "content": text})
-            conversation_history.append({"role": "assistant", "content": heuristic})
-            add_to_buffer(text, heuristic)
-            return
+        # Use momentum to adjust heuristic aggressiveness
+        heuristic_scale = momentum.get_heuristic_rule_scale()
+        # Base threshold for heuristic usage
+        base_heuristic_threshold = float_to_q(0.3)
+        # Adjust threshold based on momentum tau (negative = engage LLM sooner)
+        tau_adjustment = momentum.get_tau_adjustment()
+        adjusted_threshold = q_add(base_heuristic_threshold, tau_adjustment)
+        # Only try heuristic if momentum suggests it's appropriate
+        if heuristic_scale > adjusted_threshold:
+            heuristic = _heuristic_reply(text)
+            if heuristic:
+                await update.message.reply_text(heuristic)
+                # Log exchange for memory and context
+                conversation_history.append({"role": "user", "content": text})
+                conversation_history.append({"role": "assistant", "content": heuristic})
+                add_to_buffer(text, heuristic)
+                return
 
     pending = cstate.get_pending(chat_id)
     if pending:

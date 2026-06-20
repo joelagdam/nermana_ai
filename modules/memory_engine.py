@@ -4,6 +4,7 @@ from collections import deque
 from datetime import datetime, timedelta
 
 from modules import pipeline_log
+import momentum
 
 log = logging.getLogger("memory_engine")
 
@@ -320,14 +321,20 @@ def get_relevant_memory(user_input: str, max_facts: int = 5) -> dict:
 
     if is_available():
         try:
-            sem = semantic_search(user_input, top_k=max_facts)
+            # Apply specificity bonus to increase memory retrieval for personal/specific queries
+            specificity_bonus = momentum.get_specificity_bonus()
+            effective_max_facts = max_facts + specificity_bonus
+            sem = semantic_search(user_input, top_k=effective_max_facts)
             result["lt_facts"] = [r["text"] for r in sem]
         except Exception as e:
             log.warning(f"Semantic search failed: {e}")
 
     if not result["lt_facts"] and words:
+        # Apply specificity bonus to increase memory retrieval for personal/specific queries
+        specificity_bonus = momentum.get_specificity_bonus()
+        effective_max_facts = max_facts + specificity_bonus
         for lt_file in LT.glob("*.txt"):
-            if len(result["lt_facts"]) >= max_facts:
+            if len(result["lt_facts"]) >= effective_max_facts:
                 break
             try:
                 lines = lt_file.read_text(encoding="utf-8").splitlines()
@@ -335,7 +342,7 @@ def get_relevant_memory(user_input: str, max_facts: int = 5) -> dict:
                     line = line.strip()
                     if line and _keyword_filter(line, words):
                         result["lt_facts"].append(line)
-                        if len(result["lt_facts"]) >= max_facts:
+                        if len(result["lt_facts"]) >= effective_max_facts:
                             break
             except Exception:
                 pass

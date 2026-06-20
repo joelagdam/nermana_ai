@@ -13,6 +13,14 @@ except ImportError as e:
     log = logging.getLogger("idle_sleep")
     log.warning(f"Learning modules not available for background processing: {e}")
 
+# Import momentum system for self-learning adaptation
+try:
+    import momentum
+    MOMENTUM_AVAILABLE = True
+except ImportError as e:
+    MOMENTUM_AVAILABLE = False
+    log.warning(f"Momentum module not available for self-learning: {e}")
+
 log = logging.getLogger("idle_sleep")
 BASE = Path.home() / "nermana"
 CTL = BASE / "nermana_ctl.sh"
@@ -236,27 +244,37 @@ def start_idle_monitor():
                 # Check if we've exceeded idle threshold
                 if c["idle_minutes"] > 0 and idle_time >= c["idle_minutes"] * 60:
                     if awake:
-                        # Instead of stopping server, intensify background learning
-                        _intensify_background_learning()
+                        # Use momentum to determine if background learning should be intensified
+                        should_intensify = False
+                        if MOMENTUM_AVAILABLE:
+                            # Use self-learning momentum to decide
+                            should_intensify = momentum.should_intensify_background_learning()
+                        else:
+                            # Fallback to original behavior
+                            should_intensify = True
 
-                        # Run background learning tasks with staggered timing to avoid bursts
-                        # Reflection: every N minutes when intensified
-                        reflection_interval = c["bg_reflection_intensified_min"] * 60
-                        if current_time - _last_reflection_time >= reflection_interval:
-                            _run_background_reflection()
-                            _last_reflection_time = current_time
+                        if should_intensify:
+                            # Instead of stopping server, intensify background learning
+                            _intensify_background_learning()
 
-                        # Consolidation: every N minutes when intensified
-                        consolidation_interval = c["bg_consolidation_intensified_min"] * 60
-                        if current_time - _last_consolidation_time >= consolidation_interval:
-                            _run_background_consolidation()
-                            _last_consolidation_time = current_time
+                            # Run background learning tasks with staggered timing to avoid bursts
+                            # Reflection: every N minutes when intensified
+                            reflection_interval = c["bg_reflection_intensified_min"] * 60
+                            if current_time - _last_reflection_time >= reflection_interval:
+                                _run_background_reflection()
+                                _last_reflection_time = current_time
 
-                        # Curiosity processing: every N minutes when intensified
-                        curiosity_interval = c["bg_curiosity_intensified_min"] * 60
-                        if current_time - _last_curiosity_time >= curiosity_interval:
-                            _run_background_curiosity()
-                            _last_curiosity_time = current_time
+                            # Consolidation: every N minutes when intensified
+                            consolidation_interval = c["bg_consolidation_intensified_min"] * 60
+                            if current_time - _last_consolidation_time >= consolidation_interval:
+                                _run_background_consolidation()
+                                _last_consolidation_time = current_time
+
+                            # Curiosity processing: every N minutes when intensified
+                            curiosity_interval = c["bg_curiosity_intensified_min"] * 60
+                            if current_time - _last_curiosity_time >= curiosity_interval:
+                                _run_background_curiosity()
+                                _last_curiosity_time = current_time
                     else:
                         # Server not awake; we could optionally try to wake it via ctl,
                         # but we rely on the restart mechanism above.

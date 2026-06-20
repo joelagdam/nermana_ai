@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#07080c">
+    <title>Model Management - NERMANA</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="model-manager.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Top bar -->
+        <div class="topbar">
+            <div class="logo">NERMANA<sub>v4.7.2</sub></div>
+            <div class="status-group">
+                <span class="s-label"><span class="dot" id="dot-llm"></span> LLM</span>
+            </div>
+        </div>
+
+        <!-- Back button -->
+        <div class="back-button" onclick="window.history.back()">
+            <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg> Back
+        </div>
+
+        <!-- Page content -->
+        <div class="page-content">
+            <div class="card">
+                <div class="card-label">🤖 Installed Models
+                    <button class="btn btn-ghost btn-sm" onclick="loadModels()" style="margin-left:auto">↻ Refresh</button>
+                </div>
+                <div id="modelList"><div class="skeleton" style="height:80px;margin-bottom:8px"></div></div>
+                <div class="dl-progress" id="dlProgress" style="display:none">
+                    <div class="progress-bar"><div class="progress-fill" id="dlBarFill"></div></div>
+                    <span id="dlText" style="margin-top:4px;display:block">Starting…</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">📥 Recommended</div>
+                <div id="recommendedList"><div class="skeleton" style="height:60px;margin-bottom:6px"></div></div>
+            </div>
+
+            <div class="custom-dl">
+                <div class="stitle mb-8">⬇ Custom Download</div>
+                <div class="field"><label>GGUF URL</label><input type="text" id="customUrl" placeholder="https://huggingface.co/…/model.gguf"></div>
+                <div class="field"><label>Filename</label><input type="text" id="customFile" placeholder="model-name.gguf"></div>
+                <div class="field"><label>Model Type</label>
+                    <select id="customType">
+                        <option value="generation">Generation</option>
+                        <option value="embedding">Embedding</option>
+                    </select>
+                </div>
+                <button class="btn btn-sm" onclick="downloadCustom()">Download</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/app.js"></script>
+    <script src="model-manager.js"></script>
+</body>
+</html>

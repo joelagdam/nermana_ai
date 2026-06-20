@@ -1,0 +1,225 @@
+/* Model Management Page Specific Styles */
+
+/* Override or add styles specific to the model management page */
+
+/* Back button styling */
+.back-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 14px;
+    background: var(--surface);
+    border-radius: var-radius-sm);
+    margin: 16px;
+    width: fit-content;
+}
+
+.back-button:hover {
+    background: var(--surface2);
+}
+
+.back-button svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--text2);
+    fill: none;
+}
+
+/* Ensure cards have proper spacing */
+.page-content {
+    padding: 0 16px 16px;
+}
+
+.page-content .card {
+    margin-bottom: 16px;
+}
+
+/* Custom download section styling */
+.custom-dl .field {
+    margin-bottom: 12px;
+}
+
+.custom-dl .stitle {
+    margin-bottom: 8px;
+    color: var(--text2);
+    font-size: 14px;
+}
+
+/* Input styling consistency */
+.custom-dl input[type="text"],
+.custom-dl select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+}
+
+.custom-dl input[type="text"]:focus,
+.custom-dl select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(var(--accent-rgb), .2);
+}
+
+.custom-dl select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%23'+encodeURIComponent(var(--accent))+' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+}
+
+/* Button styling */
+.custom-dl .btn.btn-sm {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Progress bar styling */
+.dl-progress {
+    margin: 16px 0;
+}
+
+.progress-bar {
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--accent3);
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+#dlText {
+    display: block;
+    margin-top: 8px;
+    font-size: 13px;
+    text-align: center;
+    min-height: 16px;
+}
+
+/* Skeleton loader */
+.skeleton {
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0% {
+        background-color: var(--surface);
+    }
+    50% {
+        background-color: var(--surface2);
+    }
+    100% {
+        background-color: var(--surface);
+    }
+}
+
+/* Model card styling */
+.mcard {
+    background: var(--surface);
+    border-radius: var(--radius-sm);
+    margin-bottom: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border2);
+}
+
+.mcard-header {
+    padding: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.mcard-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    flex: 1;
+    min-width: 0;
+}
+
+.mcard-subtitle {
+    font-size: 12px;
+    color: var(--text2);
+    margin-top: 4px;
+}
+
+.mcard-actions {
+    padding: 0 16px 16px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.mcard-actions .btn {
+    flex: 1;
+    min-width: 80px;
+}
+
+/* Badge styling */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge-accent {
+    background: rgba(var(--accent-rgb), .1);
+    color: var(--accent);
+    border: 1px solid rgba(var(--accent-rgb), .2);
+}
+
+.badge-info {
+    background: rgba(0, 200, 255, .1);
+    color: var(--accent);
+    border: 1px solid rgba(0, 200, 255, .2);
+}
+
+.badge-purple {
+    background: rgba(124, 92, 252, .1);
+    color: var(--accent2);
+    border: 1px solid rgba(124, 92, 252, .2);
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+    .mcard-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .mcard-title {
+        width: 100%;
+    }
+
+    .mcard-actions {
+        flex-direction: column;
+    }
+
+    .mcard-actions .btn {
+        width: 100%;
+    }
+}

@@ -223,35 +223,6 @@
       <div class="pipe-scroll-btn" id="pipeScrollBtn" style="display:none" onclick="pipeScrollToBottom()">⬇ Latest</div>
     </div>
 
-    <!-- ═══ MODELS ═══ -->
-    <div class="page" id="page-models">
-      <div class="card">
-        <div class="card-label">🤖 Installed Models
-          <button class="btn btn-ghost btn-sm" onclick="loadModels()" style="margin-left:auto">↻ Refresh</button>
-        </div>
-        <div id="modelList"><div class="skeleton" style="height:80px;margin-bottom:8px"></div></div>
-        <div class="dl-progress" id="dlProgress" style="display:none">
-          <div class="progress-bar"><div class="progress-fill" id="dlBarFill"></div></div>
-          <span id="dlText" style="margin-top:4px;display:block">Starting…</span>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-label">📥 Recommended</div>
-        <div id="recommendedList"><div class="skeleton" style="height:60px;margin-bottom:6px"></div></div>
-      </div>
-      <div class="custom-dl">
-        <div class="stitle mb-8">⬇ Custom Download</div>
-        <div class="field"><label>GGUF URL</label><input type="text" id="customUrl" placeholder="https://huggingface.co/…/model.gguf"></div>
-        <div class="field"><label>Filename</label><input type="text" id="customFile" placeholder="model-name.gguf"></div>
-        <div class="field"><label>Model Type</label>
-          <select id="customType">
-            <option value="generation">Generation</option>
-            <option value="embedding">Embedding</option>
-          </select>
-        </div>
-        <button class="btn btn-sm" onclick="downloadCustom()">Download</button>
-      </div>
-    </div>
 
     <!-- ═══ FILES ═══ -->
     <div class="page" id="page-files">
@@ -300,7 +271,7 @@
     <button class="tab" id="tab-pipeline" onclick="showPage('pipeline',this)">
       <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Pipeline
     </button>
-    <button class="tab" id="tab-models" onclick="showPage('models',this)">
+    <button class="tab" id="tab-models" onclick="window.location.href='model-management/'">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>Models
     </button>
     <button class="tab" id="tab-files" onclick="showPage('files',this)">

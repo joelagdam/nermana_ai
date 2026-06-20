@@ -258,13 +258,15 @@ def _consolidate():
         def words(s):
             return set(re.findall(r'[a-zA-Z0-9]{3,}',
                 re.sub(r'^\[[DFRPME]\]\s*|\[\d+\]\s*$', '', s).lower()))
+        # Pre-compute word sets for all lines to avoid O(n^2) regex calls
+        word_sets = [words(line) for line in lines]
         kept, removed = [], 0
         for i, a in enumerate(lines):
-            wa = words(a)
+            wa = word_sets[i]
             dominated = any(
-                words(b) and wa and len(wa & words(b)) / min(len(wa), len(words(b))) > 0.65
-                and len(b) >= len(a)
-                for b in lines[i+1:]
+                word_sets[j] and wa and len(wa & word_sets[j]) / min(len(wa), len(word_sets[j])) > 0.65
+                and len(lines[j]) >= len(a)
+                for j in range(i+1, len(lines))
             )
             if dominated:
                 removed += 1

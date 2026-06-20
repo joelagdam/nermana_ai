@@ -9,6 +9,7 @@ from flask import Flask, jsonify, request, Response
 sys.path.insert(0, str(Path.home() / "nermana" / "modules"))
 sys.path.insert(0, str(Path.home() / "nermana" / "bot"))
 from prompt_builder import build_system_prompt, should_force_search
+import pipeline_log
 try:
     import nermana_memory_llm as _memory_llm
     _HAS_MEMORY_LLM = True
@@ -27,13 +28,40 @@ app         = Flask(__name__)
 import mood as _mood_mod
 import scheduler as _sched_mod
 
+# Config cache for performance
+_web_cfg_cache = {}
+_web_cfg_cache_mtime = 0
+
 def _read_cfg():
+    global _web_cfg_cache, _web_cfg_cache_mtime
+
+    # Check if file exists and get modification time
+    if not CONFIG_FILE.exists():
+        return {}
+
+    try:
+        mtime = CONFIG_FILE.stat().st_mtime
+    except:
+        # If we can't get mtime, fall back to reading file
+        mtime = 0
+
+    # Return cached config if file hasn't changed
+    if mtime == _web_cfg_cache_mtime and _web_cfg_cache:
+        return _web_cfg_cache.copy()
+
+    # Read and cache new config
     cfg = {}
-    if CONFIG_FILE.exists():
+    try:
         for line in CONFIG_FILE.read_text().splitlines():
             if "=" in line and not line.startswith("#"):
                 k, v = line.split("=", 1)
                 cfg[k.strip()] = v.strip().strip('"').strip("'")
+    except:
+        # If reading fails, return cached config if available, otherwise empty dict
+        return _web_cfg_cache.copy() if _web_cfg_cache else {}
+
+    _web_cfg_cache = cfg.copy()
+    _web_cfg_cache_mtime = mtime
     return cfg
 
 def _write_cfg(key, val):
@@ -47,11 +75,19 @@ def _write_cfg(key, val):
     CONFIG_FILE.write_text(content)
 
 def _get_pipeline_events(n=100):
-    logf = BASE / "logs" / "pipeline.jsonl"
-    if not logf.exists():
-        return []
-    lines = logf.read_text(encoding='utf-8').splitlines()
-    return [json.loads(l) for l in lines[-n:] if l.strip()]
+    # Use in-memory buffer for small n (faster), fall back to file for large n
+    if n <= 100:
+        # Get recent events from in-memory buffer (max 100 events)
+        events = pipeline_log.get_recent(n)
+        # Return in same format as file-based version (list of dicts)
+        return events
+    else:
+        # For large n, read from file (preserves original behavior)
+        logf = BASE / "logs" / "pipeline.jsonl"
+        if not logf.exists():
+            return []
+        lines = logf.read_text(encoding='utf-8').splitlines()
+        return [json.loads(l) for l in lines[-n:] if l.strip()]
 
 def _memory_stats():
     def count(p):
@@ -134,15 +170,13 @@ def _llm_alive():
 
 def _write_pipeline_event(stage, data):
     try:
-        logf = BASE / "logs" / "pipeline.jsonl"
-        logf.parent.mkdir(parents=True, exist_ok=True)
+        from modules import pipeline_log
         event = {
             "stage": stage, "data": data,
             "ts": _time.time(), "ts_human": _time.strftime("%H:%M:%S"),
             "source": "webui"
         }
-        with open(logf, "a") as f:
-            f.write(json.dumps(event) + "\n")
+        pipeline_log._write(event)
     except:
         pass
 

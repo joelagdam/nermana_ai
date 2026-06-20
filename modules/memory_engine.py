@@ -35,6 +35,10 @@ SUMMARY_FACTS_PER_TOPIC = int(CFG.get("SUMMARY_FACTS_PER_TOPIC", 5))  # NEW: How
 
 _buf_lock = threading.Lock()
 _sum_lock = threading.Lock()  # NEW: Lock for summary updates
+_summary_cache_lock = threading.Lock()  # Lock for summary cache
+_summary_cache = {}  # topic -> list of (fact, score, timestamp)
+_last_summary_flush = 0
+_SUMMARY_FLUSH_INTERVAL = 30  # seconds
 
 _buffer = deque(maxlen=BUFFER_WINDOW)
 _buf_file = BUF / "current.jsonl"
@@ -48,6 +52,71 @@ if _buf_file.exists():
         log.info(f"Buffer reloaded from disk: {len(_buffer)} entries")
     except Exception as _e:
         log.warning(f"Buffer reload failed: {_e}")
+
+
+def _flush_summary_cache():
+    """Flush summary cache to disk. Called periodically by background thread."""
+    global _last_summary_flush
+    with _summary_cache_lock:
+        if not _summary_cache:
+            return
+
+        # Copy cache to work on and clear it
+        cache_to_flush = _summary_cache.copy()
+        _summary_cache.clear()
+
+    # Flush each topic to disk
+    for topic, facts in cache_to_flush.items():
+        summary_file = SUM / f"{topic.replace(' ', '_')}.txt"
+        try:
+            # Load existing facts from disk to merge with cache
+            existing_facts = []
+            if summary_file.exists():
+                try:
+                    content = summary_file.read_text(encoding="utf-8").strip()
+                    if content:
+                        for line in content.split(';;'):
+                            if line.strip():
+                                parts = line.strip().split('||', 1)
+                                if len(parts) == 2:
+                                    existing_facts.append((parts[0], int(parts[1]), 0))  # timestamp 0 for old facts
+                except Exception as e:
+                    log.debug(f"Could not load existing summary for {topic}: {e}")
+
+            # Merge existing and new facts
+            all_facts = existing_facts + facts
+
+            # Sort by score (desc), then by timestamp (desc for recency), keep top N
+            all_facts.sort(key=lambda x: (x[1], x[2]), reverse=True)
+            all_facts = all_facts[:SUMMARY_FACTS_PER_TOPIC]
+
+            # Write back summary
+            lines = [f"{fact}||{score}" for fact, score, _ in all_facts]
+            summary_file.write_text(";;".join(lines) + "\n", encoding="utf-8")
+            log.debug(f"Flushed summary for '{topic}': {len(all_facts)} facts")
+        except Exception as e:
+            log.warning(f"Failed to flush summary for {topic}: {e}")
+
+    _last_summary_flush = time.time()
+
+
+def _start_summary_flusher():
+    """Start background thread to periodically flush summary cache to disk."""
+    def _flusher_loop():
+        while True:
+            time.sleep(_SUMMARY_FLUSH_INTERVAL)
+            try:
+                _flush_summary_cache()
+            except Exception as e:
+                log.debug(f"Summary flusher error: {e}")
+
+    flusher_thread = threading.Thread(target=_flusher_loop, daemon=True)
+    flusher_thread.start()
+    log.debug("Summary flusher started")
+
+
+# Start the summary flusher when module loads
+_start_summary_flusher()
 
 try:
     from semantic_memory import semantic_search, store_embedding, init_semantic_memory, is_available
@@ -144,9 +213,12 @@ def store_memory(line: str, score: int, user_ctx: str = ""):
         store_embedding(fact_id, line)
         pipeline_log.log_embedding(fact_id)
 
-        # NEW: Also update summary for this fact
+        # NEW: Also update summary for this fact (via cache for performance)
         topic = _extract_topic_from_fact(line)
-        _update_summary(topic, line, score)
+        with _summary_cache_lock:
+            if topic not in _summary_cache:
+                _summary_cache[topic] = []
+            _summary_cache[topic].append((line, score, time.time()))
 
     elif score >= 4:
         with open(ST / f"{today}_ctx.txt", "a", encoding="utf-8") as f:
@@ -154,7 +226,10 @@ def store_memory(line: str, score: int, user_ctx: str = ""):
 
         # NEW: Also update summary for medium-score facts (optional)
         # topic = _extract_topic_from_fact(line)
-        # _update_summary(topic, line, score)
+        # with _summary_cache_lock:
+        #     if topic not in _summary_cache:
+        #         _summary_cache[topic] = []
+        #     _summary_cache[topic].append((line, score, time.time()))
     else:
         with open(JUNK / f"{today}_disc.txt", "a", encoding="utf-8") as f:
             f.write(line + "\n")
@@ -185,15 +260,45 @@ def get_relevant_memory(user_input: str, max_facts: int = 5) -> dict:
     result["keywords"] = list(words)
 
     # NEW: Check summaries first for ultra-fast retrieval (mobile optimization)
+    # Check both in-memory cache (freshest) and disk-based summaries
     if words:
+        # Track topics we've already added to avoid duplicates
+        added_topics = set()
+
+        # First, check in-memory summary cache (most recent facts)
+        try:
+            with _summary_cache_lock:
+                for topic, facts in _summary_cache.items():
+                    if len(result["summaries"]) >= 3:  # Limit summaries returned
+                        break
+                    # Simple topic matching: check if any query word is in topic
+                    if any(word in topic.lower() for word in words):
+                        if topic in added_topics:
+                            continue
+                        added_topics.add(topic)
+                        # Extract just the facts from cached (fact, score, timestamp) tuples
+                        summary_lines = [fact for fact, _, _ in facts]
+                        if summary_lines:
+                            result["summaries"].append({
+                                "topic": topic,
+                                "facts": summary_lines
+                            })
+        except Exception as e:
+            log.debug(f"Summary cache search failed: {e}")
+
+        # Then, check disk-based summaries for additional coverage
         try:
             for summary_file in SUM.glob("*.txt"):
                 if len(result["summaries"]) >= 3:  # Limit summaries returned
                     break
                 try:
                     topic = summary_file.stem.replace('_', ' ')
+                    # Skip if we already have this topic from cache
+                    if topic in added_topics:
+                        continue
                     # Simple topic matching: check if any query word is in topic
                     if any(word in topic.lower() for word in words):
+                        added_topics.add(topic)
                         content = summary_file.read_text(encoding="utf-8").strip()
                         if content:
                             # Parse summary facts
@@ -211,7 +316,7 @@ def get_relevant_memory(user_input: str, max_facts: int = 5) -> dict:
                 except Exception as e:
                     log.debug(f"Could not read summary {summary_file}: {e}")
         except Exception as e:
-            log.debug(f"Summary search failed: {e}")
+            log.debug(f"Disk summary search failed: {e}")
 
     if is_available():
         try:

@@ -31,14 +31,41 @@ _last_reflection_time = 0
 _last_consolidation_time = 0
 _last_curiosity_time = 0
 
+# Config cache for performance
+_cfg_cache = {}
+_cfg_cache_mtime = 0
+
 def _load_cfg():
-    cfg = {}
+    global _cfg_cache, _cfg_cache_mtime
     cfg_file = BASE / ".config"
-    if cfg_file.exists():
+
+    # Check if file exists and get modification time
+    if not cfg_file.exists():
+        return {}
+
+    try:
+        mtime = cfg_file.stat().st_mtime
+    except:
+        # If we can't get mtime, fall back to reading file
+        mtime = 0
+
+    # Return cached config if file hasn't changed
+    if mtime == _cfg_cache_mtime and _cfg_cache:
+        return _cfg_cache.copy()
+
+    # Read and cache new config
+    cfg = {}
+    try:
         for line in cfg_file.read_text().splitlines():
             if "=" in line and not line.startswith("#"):
                 k, v = line.split("=", 1)
                 cfg[k.strip()] = v.strip().strip('"').strip("'")
+    except:
+        # If reading fails, return cached config if available, otherwise empty dict
+        return _cfg_cache.copy() if _cfg_cache else {}
+
+    _cfg_cache = cfg.copy()
+    _cfg_cache_mtime = mtime
     return cfg
 
 def _cfg():

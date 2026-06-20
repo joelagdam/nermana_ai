@@ -303,29 +303,31 @@ async def _run_pipeline(
         try:
             # Estimate metrics for momentum update
             # Confidence: higher if we got a substantial response without errors
-            confidence = 800 if response and len(response.strip()) > 10 else 300  # 0.8 or 0.3 in Q10
+            confidence = 819 if response and len(response.strip()) > 10 else 307  # 0.8 or 0.3 in Q10 (819=0.8*1024, 307=0.3*1024)
 
             # Complexity: based on question length and question words
             question_words = len(re.findall(r'\b(what|who|when|where|why|how|which)\b', user_text.lower()))
             text_length = len(user_text)
-            complexity = min(1000, (question_words * 150) + (text_length // 2))  # Cap at 1000
+            complexity_raw = (question_words * 150) + (text_length // 2)
+            complexity = min(1024, int(complexity_raw * 1024 / 1000))  # Cap at 1024
 
             # Specificity: count personal references and named entities
             personal_refs = len(re.findall(r'\b(i|me|my|mine|you|your|yours)\b', user_text.lower()))
-            specificity = min(1000, personal_refs * 200)  # Cap at 1000
+            specificity_raw = personal_refs * 200
+            specificity = min(1024, int(specificity_raw * 1024 / 1000))  # Cap at 1024
 
             # Latency: approximate based on response characteristics
             # This is a simplified estimation - in practice we'd measure actual time
             if response and len(response.strip()) > 50:
-                latency = 400  # Moderate latency for substantial response
+                latency = int(400 * 1024 / 1000)  # 410 (0.4s * 1024)
             elif response:
-                latency = 200  # Low latency for short response
+                latency = int(200 * 1024 / 1000)  # 205 (0.2s * 1024)
             else:
-                latency = 800  # High latency for failed/empty response
+                latency = int(800 * 1024 / 1000)  # 819 (0.8s * 1024)
 
             # Expected latency: based on what we think should have happened
             # Simple heuristic: if we used heuristic, expect low latency; if LLM, expect higher
-            expected_latency = 300  # Baseline expectation
+            expected_latency = int(300 * 1024 / 1000)  # 307 (0.3s * 1024)
 
             momentum.update_exchange(confidence, complexity, specificity, latency, expected_latency)
         except Exception:

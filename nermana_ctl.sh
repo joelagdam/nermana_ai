@@ -256,19 +256,21 @@ case "$1" in
         ;;
     update)
         cd "$NERMANA_DIR"
-        info "Updating NERMANA from GitHub..."
-        # Fetch and pull changes
-        if ! git fetch origin 2>/dev/null; then
-            fail "Failed to fetch from GitHub"
-        fi
-        # Check if there are updates
-        if git diff --quiet HEAD origin/master 2>/dev/null; then
-            ok "Already up to date"
+        ok "Updating NERMANA from GitHub..."
+        # Check for internet connectivity by trying to reach GitHub (with a timeout)
+        if ! timeout 5 git fetch origin 2>/dev/null; then
+            warn "No internet connection. Cannot update. Skipping."
+            # We don't fail the entire command, just skip the update.
         else
-            if ! git pull origin master 2>/dev/null; then
-                fail "Failed to pull updates"
+            # Check if there are updates
+            if git diff --quiet HEAD origin/master 2>/dev/null; then
+                ok "Already up to date"
+            else
+                if ! git pull origin master 2>/dev/null; then
+                    fail "Failed to pull updates"
+                fi
+                ok "Update successful. Please restart services: nermana restart"
             fi
-            ok "Update successful. Please restart services: nermana restart"
         fi
         ;;
     reset) rm -rf "$NERMANA_DIR/memory/long_term" "$NERMANA_DIR/memory/short_term" "$NERMANA_DIR/memory/buffer" "$NERMANA_DIR/knowledge/facts.txt" "$NERMANA_DIR/memory/embeddings/vectors.db"; mkdir -p "$NERMANA_DIR/memory/long_term" "$NERMANA_DIR/memory/short_term" "$NERMANA_DIR/memory/buffer"; ok "Memory cleared" ;;

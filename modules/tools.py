@@ -1,9 +1,14 @@
-import re, json, subprocess, shutil, logging, socket
+import re, json, subprocess, shutil, logging, socket, time
 from pathlib import Path
 import requests
 
 log = logging.getLogger("tools")
 _offline_mode = False
+
+# Cache for offline fallback
+_WEATHER_CACHE = {}  # city -> (data, timestamp)
+_WEB_SEARCH_CACHE = {}  # query -> (results, timestamp)
+_CACHE_TTL = 300  # 5 minutes
 
 def set_offline_mode(offline):
     global _offline_mode
@@ -32,21 +37,47 @@ SEARCH_RESULTS = int(CFG.get("SEARCH_RESULTS", "3"))
 EXEC_WHITELIST = [c.strip() for c in CFG.get("EXEC_WHITELIST", "ls,pwd,df,du,whoami,uptime,date,termux-battery-status,termux-wifi-connectioninfo,free,uname").split(",")]
 
 def get_weather(city=None):
-    if not is_online():
-        return {"ok": False, "error": "Offline – cannot fetch weather", "city": city or DEFAULT_CITY}
     city = (city or DEFAULT_CITY).strip()
+
+    # If we have a cached result and it's still fresh, return it
+    if city in _WEATHER_CACHE:
+        data, timestamp = _WEATHER_CACHE[city]
+        if time.time() - timestamp < _CACHE_TTL:
+            return data
+
+    if not is_online():
+        # Return cached data if available (even if expired), otherwise offline error
+        if city in _WEATHER_CACHE:
+            data, timestamp = _WEATHER_CACHE[city]
+            # Mark as cached data
+            data = data.copy()
+            data["_cached"] = True
+            data["_note"] = "Showing cached data (offline)"
+            return data
+        return {"ok": False, "error": "Offline – cannot fetch weather", "city": city}
+
     try:
         r = requests.get(f"https://wttr.in/{requests.utils.quote(city)}?format=j1", timeout=10)
         if r.status_code != 200:
             return {"ok": False, "error": f"HTTP {r.status_code}", "city": city}
         cur = r.json().get("current_condition", [{}])[0]
-        return {
+        result = {
             "ok": True,
             "city": city,
             "temp_c": cur.get("temp_C"),
             "condition": (cur.get("weatherDesc", [{}])[0] or {}).get("value", "unknown")
         }
+        # Cache the successful result
+        _WEATHER_CACHE[city] = (result, time.time())
+        return result
     except Exception as e:
+        # Return cached data on error if available
+        if city in _WEATHER_CACHE:
+            data, timestamp = _WEATHER_CACHE[city]
+            data = data.copy()
+            data["_cached"] = True
+            data["_note"] = "Showing cached data (error)"
+            return data
         return {"ok": False, "error": str(e), "city": city}
 
 def format_weather(w):
@@ -72,17 +103,42 @@ def extract_search_query(text):
     return query[:150]
 
 def web_search(query, n=None):
-    if not is_online():
-        return []
     n = n or SEARCH_RESULTS
+
+    # If we have a cached result and it's still fresh, return it
+    cache_key = f"{query}:{n}"
+    if cache_key in _WEB_SEARCH_CACHE:
+        results, timestamp = _WEB_SEARCH_CACHE[cache_key]
+        if time.time() - timestamp < _CACHE_TTL:
+            # Mark results as cached
+            for r in results:
+                r["_cached"] = True
+            return results
+
+    if not is_online():
+        # Return cached data if available (even if expired)
+        if cache_key in _WEB_SEARCH_CACHE:
+            results, timestamp = _WEB_SEARCH_CACHE[cache_key]
+            # Mark results as cached
+            for r in results:
+                r["_cached"] = True
+                r["_note"] = "Showing cached results (offline)"
+            return results
+        return []
+
+    # Try ddgr first
     if shutil.which("ddgr"):
         try:
             out = subprocess.run(["ddgr", "--json", "-n", str(n), "--noprompt", query], capture_output=True, text=True, timeout=20)
             if out.returncode == 0 and out.stdout:
                 data = json.loads(out.stdout)
-                return [{"title": item.get("title", ""), "url": item.get("url", ""), "snippet": item.get("abstract", "")} for item in data[:n]]
+                results = [{"title": item.get("title", ""), "url": item.get("url", ""), "snippet": item.get("abstract", "")} for item in data[:n]]
+                # Cache successful results
+                _WEB_SEARCH_CACHE[cache_key] = (results, time.time())
+                return results
         except:
             pass
+    # Fallback to duckduckgo.com
     try:
         r = requests.post("https://lite.duckduckgo.com/lite/", data={"q": query}, timeout=15)
         if r.status_code != 200:
@@ -94,6 +150,8 @@ def web_search(query, n=None):
         for i, (url, title) in enumerate(links[:n]):
             snippet = re.sub(r"<[^>]+>", "", snippets[i] if i < len(snippets) else "").strip()
             results.append({"title": re.sub(r"<[^>]+>", "", title).strip(), "url": url, "snippet": snippet})
+        # Cache successful results
+        _WEB_SEARCH_CACHE[cache_key] = (results, time.time())
         return results
     except:
         return []

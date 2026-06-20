@@ -32,6 +32,10 @@ import scheduler as _sched_mod
 _web_cfg_cache = {}
 _web_cfg_cache_mtime = 0
 
+# Search cache for offline fallback
+_search_cache = {}  # (query, online_flag) -> (result_string, source, timestamp)
+_SEARCH_CACHE_TTL = 300  # 5 minutes
+
 def _read_cfg():
     global _web_cfg_cache, _web_cfg_cache_mtime
 
@@ -165,6 +169,76 @@ def _is_online_cached():
     _online_cache["ts"] = now
     return result
 
+def is_query_specific(query: str) -> bool:
+    """Fast, lightweight check for query specificity to avoid token-wasting vague searches.
+    Returns True if query is sufficiently specific to proceed with search/tool use.
+    Designed to run in <1ms with zero external dependencies."""
+    if not query or not isinstance(query, str):
+        return False
+
+    query = query.strip()
+    # Fast exit for very short queries (configurable via .config)
+    min_length = int(_read_cfg().get("SEARCH_MIN_LENGTH", "8"))
+    if len(query) < min_length:
+        return False
+
+    # Tokenize lightly (alphanumeric words only)
+    words = re.findall(r'\b\w+\b', query.lower())
+    if not words:
+        return False
+
+    # Minimal stopword list for specificity check (avoids NLTK/spacy)
+    stopwords = {
+        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to',
+        'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be',
+        'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
+        'will', 'would', 'should', 'could', 'may', 'might', 'must',
+        'can', 'this', 'that', 'these', 'those', 'i', 'you', 'we',
+        'they', 'it', 'he', 'she', 'what', 'which', 'who', 'when',
+        'where', 'why', 'how', 'just', 'really', 'very', 'quite',
+        'rather', 'some', 'any', 'all', 'each', 'every', 'no', 'not'
+    }
+
+    # Calculate ratio of meaningful (non-stopword) words
+    non_stop = [w for w in words if w not in stopwords]
+    total_words = len(words)
+    if total_words == 0:
+        return False
+    specificity_ratio = len(non_stop) / total_words
+
+    # Configurable specificity threshold (higher = stricter)
+    min_ratio = float(_read_cfg().get("SEARCH_MIN_SPECIFICITY_RATIO", "0.3"))
+
+    # Bonus indicators of specificity (crude but fast)
+    has_specific_indicators = False
+    # Proper nouns (crude: capitalized word not at start of sentence)
+    if re.search(r'\s[A-Z][a-z]+', query) or (query and query[0].isupper() and len(query) > 1):
+        has_specific_indicators = True
+    # Numbers/dates
+    if re.search(r'\d+', query):
+        has_specific_indicators = True
+    # Question words with clear focus (e.g., "how to fix X" vs "what is X")
+    if re.search(r'\b(how|why|what)\s+to\s+\w+', query, re.I) or \
+       re.search(r'\b(what|why|how)\s+is\s+the\s+\w+\s+of', query, re.I):
+        has_specific_indicators = True
+
+    # Handle overly generic single meaningful words (e.g., "information", "stuff")
+    if total_words == 1 and len(non_stop) == 1:
+        generic_terms = {'information', 'data', 'stuff', 'things', 'topic', 'subject',
+                        'idea', 'concept', 'thing', 'details', 'facts', 'news', 'update'}
+        if non_stop[0] in generic_terms:
+            return False
+
+    # Decision logic:
+    # - If ratio meets threshold → specific
+    # - If ratio low but has specific indicators (e.g., "AI 2024 breakthrough") → specific
+    # - Else → too vague
+    if specificity_ratio >= min_ratio:
+        return True
+    if specificity_ratio < min_ratio and has_specific_indicators:
+        return True
+    return False
+
 def _trim_history():
     with _web_history_lock:
         while len(_web_history) > _MAX_HISTORY:
@@ -297,6 +371,13 @@ def _offline_search_local(query):
     return f"No results found for: {query} (offline — local memory also empty)"
 
 def _do_search(query, online):
+    # Check cache for fresh results
+    cache_key = (query, online)
+    if cache_key in _search_cache:
+        result_str, source, timestamp = _search_cache[cache_key]
+        if time.time() - timestamp < _SEARCH_CACHE_TTL:
+            return result_str, source
+
     if online:
         if shutil.which("ddgr"):
             try:
@@ -307,7 +388,10 @@ def _do_search(query, online):
                     items = json.loads(out.stdout)
                     lines = [f"{i+1}. {r.get('title','')} — {r.get('url','')}\n   {r.get('abstract','')[:120]}"
                              for i, r in enumerate(items[:3])]
-                    return "Web results:\n" + "\n".join(lines), "web"
+                    result_str = "Web results:\n" + "\n".join(lines)
+                    # Cache successful web results
+                    _search_cache[cache_key] = (result_str, "web", time.time())
+                    return result_str, "web"
             except:
                 pass
         try:
@@ -323,10 +407,17 @@ def _do_search(query, online):
                     sc = re.sub(r"<[^>]+>", "", snips[i] if i < len(snips) else "").strip()
                     items.append(f"{i+1}. {tc} — {url}\n   {sc[:120]}")
                 if items:
-                    return "Web results:\n" + "\n".join(items), "web"
+                    result_str = "Web results:\n" + "\n".join(items)
+                    # Cache successful web results
+                    _search_cache[cache_key] = (result_str, "web", time.time())
+                    return result_str, "web"
         except:
             pass
-    return _offline_search_local(query), "offline"
+    # If we get here, either online is False or web search failed
+    result_str = _offline_search_local(query)
+    # Cache offline results too (they might be useful if we lose connectivity soon after)
+    _search_cache[cache_key] = (result_str, "offline", time.time())
+    return result_str, "offline"
 
 def _do_exec(cmd):
     cfg = _read_cfg()
@@ -434,6 +525,10 @@ def api_chat():
         # force-search pre-flight for recent/time-sensitive queries
         _force_q = should_force_search(user_msg) if online else None
         if _force_q:
+            # Check query specificity to avoid token-wasting vague searches
+            if not is_query_specific(_force_q):
+                yield f'data: {json.dumps({"text": "Your question is too broad for effective search. Please add specifics like:\n- Timeframe (e.g., \"in the last week\")\n- Domain/context (e.g., \"for mobile AI projects\")\n- Clear objective (e.g., \"how to fix error X\")\n\nTry again with more precise details!"})}\n\n'
+                return
             _write_pipeline_event("FORCE_SEARCH", {"query": _force_q})
             yield f'data: {json.dumps({"tool": "search", "query": _force_q})}\n\n'
             _result_str, _src = _do_search(_force_q, online)
@@ -499,6 +594,10 @@ def api_chat():
                 payload_str = m.group(2).strip()[:200]
 
                 if kind == "search":
+                    # Check query specificity to avoid token-wasting vague searches
+                    if not is_query_specific(payload_str):
+                        yield f'data: {json.dumps({"text": "Your search query is too broad. Please add specifics like:\n- Timeframe (e.g., \"recent developments\")\n- Domain/context (e.g., \"regarding mobile AI\")\n- Clear focus (e.g., \"best practices for Y\")\n\nTry again with more precise details!"})}\n\n'
+                        return
                     yield f"data: {json.dumps({'tool': 'search', 'query': payload_str})}\n\n"
                     _write_pipeline_event("TOOL", {"kind": "search", "query": payload_str})
                     result_str, src = _do_search(payload_str, online)
@@ -511,6 +610,10 @@ def api_chat():
                     ).start()
 
                 elif kind == "exec":
+                    # Check command specificity to avoid vague/dangerous executions
+                    if not is_query_specific(payload_str):
+                        yield f'data: {json.dumps({"text": "Your command is too vague. Please specify:\n- Exact command to run (e.g., \"ls -la ~/nermana\")\n- Required arguments/files\n- Expected outcome\n\nTry again with a precise command!"})}\n\n'
+                        return
                     yield f"data: {json.dumps({'tool': 'exec', 'cmd': payload_str})}\n\n"
                     _write_pipeline_event("TOOL", {"kind": "exec", "cmd": payload_str})
                     out = _do_exec(payload_str)

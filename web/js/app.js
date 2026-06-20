@@ -690,7 +690,7 @@ async function loadModels() {
     const r = await api('/api/models');
     let installedHtml = '';
     let recHtml = '';
-    const presets = [];
+    // We no longer need the presets array, we'll filter r.models directly
     for (const m of r.models) {
       // Parse filename for additional info (size, format) if possible
       let sizeInfo = m.size || '';
@@ -705,45 +705,50 @@ async function loadModels() {
       const displaySize = sizeInfo || (m.size || '');
       const displayFormat = formatInfo || 'GGUF';
 
-      if (m.custom) {
-        const st = m.present
-          ? (m.valid ? '<span class="badge badge-green">✓</span>' : '<span class="badge badge-red">⚠</span>')
-          : '';
-        const act = m.active ? '<span class="badge badge-accent">ACTIVE</span>' : '';
-        const btns = [];
-        if (m.present && m.valid && !m.active) btns.push('<button class="btn btn-sm btn-primary" onclick="switchModel(\'' + esc(m.file) + '\',\'' + esc(m.name) + '\')">⇄ Switch</button>');
-        if (m.present) btns.push('<button class="btn btn-sm btn-danger" onclick="deleteModel(\'' + esc(m.file) + '\')">🗑 Delete</button>');
-        if (m.present && !m.valid) btns.push('<button class="btn btn-sm" onclick="redownloadModel(\'' + esc(m.file) + '\')">↻ Re-download</button>');
-        // Make the model name clickable to switch (if not active)
-        const titleClick = m.present && m.valid && !m.active
-          ? 'onclick="switchModel(\'' + esc(m.file) + '\',\'' + esc(m.name) + '\')"'
-          : '';
-        installedHtml += '<div class="mcard' + (m.active ? ' active-model' : '') + '"><div class="mcard-header">' +
-          '<div class="mcard-title" ' + titleClick + '>' + esc(m.name) + ' ' + act + ' ' + st + '</div>' +
-          '<div class="mcard-subtitle">' + displaySize + ' ' + displayFormat + '</div>' +
-          '</div><div class="mcard-actions">' + btns.join('') + '</div></div>';
-        continue;
-      }
-      presets.push(m);
-      const st = m.present
-        ? (m.valid ? '<span class="badge badge-green">✓</span>' : '<span class="badge badge-red">⚠ corrupt</span>')
-        : '<span class="badge badge-dim">not on disk</span>';
+      // Determine if this model is active based on its type and the active paths from the backend
+      // Note: the backend returns active_path_gen and active_path_emb, but we also have the 'active' field per model.
+      // We'll use the 'active' field from the model data (which is already set correctly in the backend).
       const act = m.active ? '<span class="badge badge-accent">ACTIVE</span>' : '';
+
+      // Prepare buttons based on model type
       const btns = [];
-      if (m.present && m.valid && !m.active) btns.push('<button class="btn btn-sm btn-primary" onclick="switchModel(\'' + esc(m.file) + '\',\'' + esc(m.name) + '\')">⇄ Switch</button>');
-      if (m.present) btns.push('<button class="btn btn-sm btn-danger" onclick="deleteModel(\'' + esc(m.file) + '\')">🗑 Delete</button>');
-      if (m.present && !m.valid) btns.push('<button class="btn btn-sm" onclick="redownloadModel(\'' + esc(m.file) + '\')">↻ Re-download</button>');
-      if (!m.present) btns.push('<button class="btn btn-sm btn-primary" onclick="startDownload(\'' + esc(m.file) + '\',\'' + esc(m.url) + '\',\'' + esc(m.name) + '\')">⬇ Download</button>');
-      // Make the model name clickable to switch (if not active and present)
-      const titleClick = m.present && m.valid && !m.active
-        ? 'onclick="switchModel(\'' + esc(m.file) + '\',\'' + esc(m.name) + '\')"'
-        : '';
-      installedHtml += '<div class="mcard' + (m.active ? ' active-model' : '') + '"><div class="mcard-header">' +
-        '<div class="mcard-title" ' + titleClick + '>' + esc(m.name) + ' ' + act + ' ' + st + '</div>' +
+      if (m.type === 'generation') {
+        // Generation model actions
+        if (m.present && m.valid && !m.active) {
+          btns.push('<button class="btn btn-sm btn-primary" onclick="switchModel(\'' + esc(m.file) + '\',\'' + esc(m.name) + '\')">⇄ Switch</button>');
+        }
+        if (m.present) {
+          btns.push('<button class="btn btn-sm btn-danger" onclick="deleteModel(\'' + esc(m.file) + '\', \'generation\')">🗑 Delete</button>');
+        }
+        if (m.present && !m.valid) {
+          btns.push('<button class="btn btn-sm" onclick="redownloadModel(\'' + esc(m.file) + '\', \'generation\')">↻ Re-download</button>');
+        }
+        if (!m.present) {
+          btns.push('<button class="btn btn-sm btn-primary" onclick="startDownload(\'' + esc(m.file) + '\',\'' + esc(m.url) + '\',\'' + esc(m.name) + '\', \'generation\')">⬇ Download</button>');
+        }
+      } else if (m.type === 'embedding') {
+        // Embedding model actions: no switch (requires restart and re-indexing)
+        if (m.present) {
+          btns.push('<button class="btn btn-sm btn-danger" onclick="deleteModel(\'' + esc(m.file) + '\', \'embedding\')" title="Deleting the embedding model requires restarting the embedding server and may require re-indexing semantic memory.">🗑 Delete</button>');
+        }
+        if (m.present && !m.valid) {
+          btns.push('<button class="btn btn-sm" onclick="redownloadModel(\'' + esc(m.file) + '\', \'embedding\')">↻ Re-download</button>');
+        }
+        if (!m.present) {
+          btns.push('<button class="btn btn-sm btn-primary" onclick="startDownload(\'' + esc(m.file) + '\',\'' + esc(m.url) + '\',\'' + esc(m.name) + '\', \'embedding\')">⬇ Download</button>');
+        }
+      }
+
+      // Show type badge
+      const typeBadge = m.type === 'generation' ? '<span class="badge badge-info">GEN</span>' : '<span class="badge badge-purple">EMB</span>';
+
+      installedHtml += '<div class="mcard"><div class="mcard-header">' +
+        '<div class="mcard-title">' + esc(m.name) + ' ' + act + ' ' + typeBadge + '</div>' +
         '<div class="mcard-subtitle">' + displaySize + ' ' + displayFormat + '</div>' +
         '</div><div class="mcard-actions">' + btns.join('') + '</div></div>';
     }
-    const recs = presets.filter((mn) => !mn.present);
+    // For the recommended list, we only show generation models that are not custom and not present
+    const recs = r.models.filter(m => m.type === 'generation' && !m.custom && !m.present);
     if (recs.length) {
       recHtml = recs.map((mn) => {
         // Parse filename for recommended models too
@@ -760,10 +765,10 @@ async function loadModels() {
         return '<div class="mcard" style="background:var(--surface)"><div class="mcard-header">' +
           '<div class="mcard-title">' + esc(mn.name) + '</div>' +
           '<div class="mcard-subtitle">' + displaySize + ' ' + displayFormat + '</div>' +
-          '</div><div class="mcard-actions"><button class="btn btn-sm btn-primary" onclick="startDownload(\'' + esc(mn.file) + '\',\'' + esc(mn.url) + '\',\'' + esc(mn.name) + '\')">⬇ Download</button></div></div>';
+          '</div><div class="mcard-actions"><button class="btn btn-sm btn-primary" onclick="startDownload(\'' + esc(mn.file) + '\',\'' + esc(mn.url) + '\',\'' + esc(mn.name) + '\', \'generation\')">⬇ Download</button></div></div>';
       }).join('');
     } else {
-      recHtml = '<div class="dim" style="padding:8px 0;font-size:12px">All recommended models are installed.</div>';
+      recHtml = '<div class="dim" style="padding:8px 0;font-size:12px">All recommended generation models are installed.</div>';
     }
     if (ml) ml.innerHTML = installedHtml || '<div class="empty-state"><div class="es-title">No models on disk</div><div class="es-desc">Download from Recommended below, or use Custom Download.</div></div>';
     if (rl) rl.innerHTML = recHtml;
@@ -772,13 +777,13 @@ async function loadModels() {
   }
 }
 
-async function startDownload(file, url, name) {
+async function startDownload(file, url, name, type = 'generation') {
   if (_dlPoll) { toast('Download in progress', 'info'); return; }
   try {
     const r = await fetch('/api/models/download', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file, url, name }),
+      body: JSON.stringify({ file, url, name, type }),
     }).then((r) => r.json());
     if (r.error) { toast(r.error, 'err'); return; }
     toast('Downloading: ' + name, 'info');
@@ -786,14 +791,14 @@ async function startDownload(file, url, name) {
   } catch (e) { toast(e.message, 'err'); }
 }
 
-async function redownloadModel(file) {
+async function redownloadModel(file, type = 'generation') {
   if (_dlPoll) { toast('Download in progress', 'info'); return; }
   showModal('Re-download', 'Download ' + file + ' again? Existing file will be overwritten.', 'Re-download', async () => {
     try {
       const resp = await fetch('/api/models/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file, url: '', force: true }),
+        body: JSON.stringify({ file, url: '', force: true, type }),
       });
       const r = await resp.json();
       if (!resp.ok) {
@@ -809,9 +814,10 @@ async function redownloadModel(file) {
 async function downloadCustom() {
   const url = $('customUrl').value.trim();
   const file = $('customFile').value.trim();
+  const type = $('customType').value;
   if (!url || !file) { toast('URL and filename required', 'err'); return; }
   if (!file.endsWith('.gguf')) { toast('Filename must end in .gguf', 'err'); return; }
-  await startDownload(file, url, file.replace('.gguf', ''));
+  await startDownload(file, url, file.replace('.gguf', ''), type);
 }
 
 function pollDownload() {
@@ -855,10 +861,10 @@ async function switchModel(file, name) {
   });
 }
 
-async function deleteModel(file) {
+async function deleteModel(file, type = 'generation') {
   showModal('Delete Model', 'Delete <b>' + esc(file) + '</b>?<br>This cannot be undone.', 'Delete', async () => {
     try {
-      await api('/api/models/delete', { method: 'POST', body: JSON.stringify({ file }) });
+      await api('/api/models/delete', { method: 'POST', body: JSON.stringify({ file, type }) });
       toast('Deleted: ' + file);
       loadModels();
     } catch (e) { toast(e.message, 'err'); }

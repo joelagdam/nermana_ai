@@ -243,6 +243,12 @@
         <div class="stitle mb-8">⬇ Custom Download</div>
         <div class="field"><label>GGUF URL</label><input type="text" id="customUrl" placeholder="https://huggingface.co/…/model.gguf"></div>
         <div class="field"><label>Filename</label><input type="text" id="customFile" placeholder="model-name.gguf"></div>
+        <div class="field"><label>Model Type</label>
+          <select id="customType">
+            <option value="generation">Generation</option>
+            <option value="embedding">Embedding</option>
+          </select>
+        </div>
         <button class="btn btn-sm" onclick="downloadCustom()">Download</button>
       </div>
     </div>

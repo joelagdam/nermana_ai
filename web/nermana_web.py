@@ -968,25 +968,39 @@ def api_reminders():
 
 @app.route('/api/models')
 def api_models():
-    MODEL_DIR = BASE / "models"
-    PRESETS = [
+    MODEL_DIR_GEN = BASE / "models"
+    MODEL_DIR_EMB = BASE / "models" / "embeddings"
+    # Ensure embeddings directory exists
+    MODEL_DIR_EMB.mkdir(parents=True, exist_ok=True)
+
+    PRESETS_GEN = [
         {"name": "Phi-3.5-mini",  "file": "phi-3.5-mini-instruct-Q4_K_M.gguf",  "size": "~2.5GB"},
         {"name": "Qwen2.5-3B",    "file": "qwen2.5-3b-instruct-Q4_K_M.gguf",    "size": "~2.0GB"},
         {"name": "SmolLM2-1.7B",  "file": "smollm2-1.7b-instruct-Q4_K_M.gguf", "size": "~1.0GB"},
     ]
+    PRESETS_EMB = [
+        {"name": "Nomic Embed Text v1.5", "file": "nomic-embed-text-v1.5.Q4_K_M.gguf", "size": "~300MB"},
+        {"name": "BGE Small EN v1.5",     "file": "bge-small-en-v1.5.Q4_K_M.gguf",     "size": "~150MB"},
+    ]
+
     cfg    = _read_cfg()
-    active = cfg.get("LLAMA_MODEL_PATH", "")
+    active_gen = cfg.get("LLAMA_MODEL_PATH", "")
+    active_emb = cfg.get("EMBEDDING_MODEL_PATH", "")
+
     models = []
-    for p in PRESETS:
-        path = MODEL_DIR / p["file"]
+
+    # Generation models
+    for p in PRESETS_GEN:
+        path = MODEL_DIR_GEN / p["file"]
         models.append({
             **p,
             "present": path.exists(),
             "valid":   _is_valid_gguf(path) if path.exists() else False,
-            "active":  str(path) == active,
+            "active":  str(path) == active_gen,
+            "type":    "generation",
         })
-    for f in MODEL_DIR.glob("*.gguf"):
-        if any(f.name == m["file"] for m in PRESETS):
+    for f in MODEL_DIR_GEN.glob("*.gguf"):
+        if any(f.name == m["file"] for m in PRESETS_GEN):
             continue
         models.append({
             "name":    f.stem.replace("_", " "),
@@ -994,10 +1008,36 @@ def api_models():
             "size":    f"~{f.stat().st_size // (1024**2)}MB",
             "present": True,
             "valid":   _is_valid_gguf(f),
-            "active":  str(f) == active,
+            "active":  str(f) == active_gen,
             "custom":  True,
+            "type":    "generation",
         })
-    return jsonify({"models": models, "active_path": active})
+
+    # Embedding models
+    for p in PRESETS_EMB:
+        path = MODEL_DIR_EMB / p["file"]
+        models.append({
+            **p,
+            "present": path.exists(),
+            "valid":   _is_valid_gguf(path) if path.exists() else False,
+            "active":  str(path) == active_emb,
+            "type":    "embedding",
+        })
+    for f in MODEL_DIR_EMB.glob("*.gguf"):
+        if any(f.name == m["file"] for m in PRESETS_EMB):
+            continue
+        models.append({
+            "name":    f.stem.replace("_", " "),
+            "file":    f.name,
+            "size":    f"~{f.stat().st_size // (1024**2)}MB",
+            "present": True,
+            "valid":   _is_valid_gguf(f),
+            "active":  str(f) == active_emb,
+            "custom":  True,
+            "type":    "embedding",
+        })
+
+    return jsonify({"models": models, "active_path_gen": active_gen, "active_path_emb": active_emb})
 
 _dl_state = {"active": False, "file": "", "progress": "", "error": ""}
 
@@ -1006,13 +1046,17 @@ def api_model_download():
     data = request.json
     url  = data.get('url')
     file = data.get('file')
+    model_type = data.get('type', 'generation')  # default to generation for backward compatibility
     if not url or not file:
         return jsonify({"error": "missing"}), 400
     if ".." in file or "/" in file:
         return jsonify({"error": "invalid file"}), 400
     if _dl_state["active"]:
         return jsonify({"error": "busy"}), 409
-    dest = BASE / "models" / file
+    if model_type == 'embedding':
+        dest = BASE / "models" / "embeddings" / file
+    else:
+        dest = BASE / "models" / file
     def _dl():
         _dl_state.update({"active": True, "file": file, "progress": "starting", "error": ""})
         try:
@@ -1060,11 +1104,16 @@ def api_model_switch():
 def api_model_delete():
     data = request.json
     file = data.get('file')
+    model_type = data.get('type', 'generation')  # default to generation for backward compatibility
     if not file or ".." in file or "/" in file:
         return jsonify({"error": "invalid file"}), 400
-    path = BASE / "models" / file
-    cfg  = _read_cfg()
-    active = cfg.get("LLAMA_MODEL_PATH", "")
+    cfg = _read_cfg()
+    if model_type == 'embedding':
+        path = BASE / "models" / "embeddings" / file
+        active = cfg.get("EMBEDDING_MODEL_PATH", "")
+    else:
+        path = BASE / "models" / file
+        active = cfg.get("LLAMA_MODEL_PATH", "")
     if not path.exists():
         return jsonify({"error": "not found"}), 404
     if str(path) == active:

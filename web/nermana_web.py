@@ -1423,9 +1423,37 @@ def js_static(filename):
     except Exception:
         return "not found", 404
 
+@app.route('/model-management/<path:filename>')
+def model_management_static(filename):
+    try:
+        p = WEB_DIR / "model-management" / filename
+        p = p.resolve()
+        if not str(p).startswith(str((WEB_DIR / "model-management").resolve())):
+            return "forbidden", 403
+        # Determine mimetype based on file extension
+        if filename.endswith('.css'):
+            mimetype = 'text/css'
+        elif filename.endswith('.js'):
+            mimetype = 'application/javascript'
+        elif filename.endswith('.html'):
+            mimetype = 'text/html'
+        else:
+            mimetype = 'application/octet-stream'
+        return Response(p.read_bytes(), mimetype=mimetype)
+    except Exception:
+        return "not found", 404
+
 @app.route('/favicon.ico')
 def favicon():
     return "", 204
+
+@app.route('/model-management/')
+def model_management_index():
+    try:
+        p = WEB_DIR / "model-management" / "index.html"
+        return Response(p.read_text(), mimetype="text/html")
+    except Exception:
+        return "not found", 404
 
 @app.route('/')
 def index():

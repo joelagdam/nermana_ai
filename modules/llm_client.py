@@ -199,6 +199,7 @@ def call_stream(messages, max_tokens=200, temperature=0.7, repeat_penalty=1.15, 
         try:
             with requests.post(ep, json=payload, stream=True, timeout=_TIME_OUT_SECONDS) as r:
                 if r.status_code == 200:
+                    _mark_success()
                     for line in r.iter_lines():
                         if not line:
                             continue
@@ -217,5 +218,7 @@ def call_stream(messages, max_tokens=200, temperature=0.7, repeat_penalty=1.15, 
                             pass
                 else:
                     log.error(f"LLM stream error: HTTP {r.status_code}")
+                    _mark_failure()
         except Exception as e:
             log.error(f"Stream error: {e}")
+            _mark_failure()

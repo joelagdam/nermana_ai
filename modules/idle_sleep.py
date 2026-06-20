@@ -19,6 +19,11 @@ CTL = BASE / "nermana_ctl.sh"
 CHECK_INTERVAL = 60
 _last_activity = time.time()
 _wake_lock = threading.Lock()
+_restart_lock = threading.Lock()
+_health_fail_count = 0
+_last_health_fail_time = 0
+_RESTART_THRESHOLD = 3
+_RESTART_COOLDOWN = 300  # seconds to wait before allowing another restart
 
 # Background learning state
 _background_intensified = False
@@ -48,6 +53,37 @@ def _cfg():
         "bg_consolidation_intensified_min": int(c.get("BG_CONSOLIDATION_INTENSIFIED_MIN", "30")),
         "bg_curiosity_intensified_min": int(c.get("BG_CURIOSITY_INTENSIFIED_MIN", "5")),
     }
+
+def _attempt_restart():
+    """Attempt to restart the LLM server if health checks repeatedly fail."""
+    global _health_fail_count, _last_health_fail_time
+    with _restart_lock:
+        # Check if we are in cooldown period
+        now = time.time()
+        if now - _last_health_fail_time < _RESTART_COOLDOWN:
+            return False
+        if _health_fail_count < _RESTART_THRESHOLD:
+            return False
+        # Try to restart server
+        log.info(f"Health check failed {_health_fail_count} times; attempting to restart LLM server")
+        try:
+            # Stop server
+            subprocess.run(["bash", str(CTL), "stop-server"], capture_output=True, timeout=30)
+            time.sleep(5)
+            # Start server
+            result = subprocess.run(["bash", str(CTL), "start-server"], capture_output=True, timeout=60)
+            if result.returncode == 0:
+                log.info("LLM server restarted successfully")
+                _health_fail_count = 0
+                _last_health_fail_time = now
+                return True
+            else:
+                log.error(f"Failed to start server: {result.stderr}")
+        except Exception as e:
+            log.error(f"Error restarting LLM server: {e}")
+        # If we get here, restart didn't succeed
+        _last_health_fail_time = now
+        return False
 
 def record_activity():
     global _last_activity, _background_intensified
@@ -157,9 +193,22 @@ def start_idle_monitor():
                 current_time = time.time()
                 idle_time = current_time - _last_activity
 
+                # Health check for LLM server
+                awake = is_server_awake()
+                with _restart_lock:
+                    if awake:
+                        _health_fail_count = 0
+                    else:
+                        _health_fail_count += 1
+                        _last_health_fail_time = current_time
+                        # If too many failures, attempt restart
+                        if _health_fail_count >= _RESTART_THRESHOLD:
+                            log.warning(f"LLM server health check failed {_health_fail_count} times; attempting restart")
+                            _attempt_restart()
+
                 # Check if we've exceeded idle threshold
                 if c["idle_minutes"] > 0 and idle_time >= c["idle_minutes"] * 60:
-                    if is_server_awake():
+                    if awake:
                         # Instead of stopping server, intensify background learning
                         _intensify_background_learning()
 
@@ -181,6 +230,10 @@ def start_idle_monitor():
                         if current_time - _last_curiosity_time >= curiosity_interval:
                             _run_background_curiosity()
                             _last_curiosity_time = current_time
+                    else:
+                        # Server not awake; we could optionally try to wake it via ctl,
+                        # but we rely on the restart mechanism above.
+                        pass
 
                 else:
                     # Not idle or idle threshold not reached - normal or reduced background learning

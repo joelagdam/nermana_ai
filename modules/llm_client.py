@@ -16,6 +16,14 @@ _bg_lock   = _threading.Lock()       # background slot: only one bg call
 # _semaphore kept for backward-compat with any direct importers
 _semaphore = _threading.Semaphore(1)
 
+# Circuit breaker for LLM server health
+_health_lock = _threading.Lock()
+_failure_count = 0
+_last_failure_time = 0
+_FAILURE_THRESHOLD = 5
+_COOLDOWN_SECONDS = 60  # cooldown period after too many failures
+_TIME_OUT_SECONDS = 30   # reduced timeout for LLM requests
+
 def _main_call_ctx():
     """Context manager: acquire main slot, also block background if it's running."""
     class _Ctx:
@@ -38,6 +46,29 @@ def _bg_call_ctx():
         def __exit__(self, *a):
             _bg_lock.release()
     return _Ctx()
+
+def _mark_failure():
+    global _failure_count, _last_failure_time
+    with _health_lock:
+        _failure_count += 1
+        _last_failure_time = time.time()
+
+def _mark_success():
+    global _failure_count
+    with _health_lock:
+        _failure_count = 0
+
+def _in_cooldown():
+    global _failure_count, _last_failure_time
+    with _health_lock:
+        if _failure_count >= _FAILURE_THRESHOLD:
+            if time.time() - _last_failure_time < _COOLDOWN_SECONDS:
+                return True
+            else:
+                # cooldown expired, reset failure count
+                _failure_count = 0
+                return False
+        return False
 
 def _load_cfg():
     cfg = {}
@@ -103,6 +134,10 @@ def embed(text: str, timeout: int = 15) -> list:
 
 def call(messages, max_tokens=200, temperature=0.7, repeat_penalty=1.15, stop=None, system=None, _bg=False):
     """Main LLM call. Set _bg=True for background tasks (memory eval, etc.)."""
+    # Circuit breaker: if in cooldown, return empty quickly
+    if _in_cooldown():
+        log.warning("LLM call skipped due to circuit breaker cooldown")
+        return ""
     ctx = _bg_call_ctx() if _bg else _main_call_ctx()
     with ctx:
         ep = get_endpoint()
@@ -123,19 +158,27 @@ def call(messages, max_tokens=200, temperature=0.7, repeat_penalty=1.15, stop=No
             payload["stop"] = stop
         for attempt in range(RETRY_ATTEMPTS):
             try:
-                r = requests.post(ep, json=payload, timeout=120)
+                r = requests.post(ep, json=payload, timeout=_TIME_OUT_SECONDS)
                 if r.status_code == 200:
                     data = r.json()
                     choice = data.get("choices", [{}])[0]
-                    return choice.get("message", {}).get("content", choice.get("text", "")).strip()
+                    result = choice.get("message", {}).get("content", choice.get("text", "")).strip()
+                    _mark_success()
+                    return result
+                else:
+                    log.error(f"LLM error: HTTP {r.status_code}")
             except Exception as e:
                 log.error(f"LLM error: {e}")
-                global _endpoint_cache
-                _endpoint_cache = None
+            _mark_failure()
+            if attempt < RETRY_ATTEMPTS - 1:
                 time.sleep(0.5 * (2 ** attempt))
         return ""
 
 def call_stream(messages, max_tokens=200, temperature=0.7, repeat_penalty=1.15, stop=None, system=None):
+    """Stream LLM call for main responses."""
+    if _in_cooldown():
+        log.warning("LLM stream call skipped due to circuit breaker cooldown")
+        return
     with _main_call_ctx():
         ep = get_endpoint()
         if not ep:
@@ -154,7 +197,7 @@ def call_stream(messages, max_tokens=200, temperature=0.7, repeat_penalty=1.15, 
         if stop:
             payload["stop"] = stop
         try:
-            with requests.post(ep, json=payload, stream=True, timeout=120) as r:
+            with requests.post(ep, json=payload, stream=True, timeout=_TIME_OUT_SECONDS) as r:
                 if r.status_code == 200:
                     for line in r.iter_lines():
                         if not line:
@@ -172,5 +215,7 @@ def call_stream(messages, max_tokens=200, temperature=0.7, repeat_penalty=1.15, 
                                 yield text
                         except:
                             pass
+                else:
+                    log.error(f"LLM stream error: HTTP {r.status_code}")
         except Exception as e:
             log.error(f"Stream error: {e}")

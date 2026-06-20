@@ -109,17 +109,202 @@ setInterval(pollStatus, 8000);
    ═════════════════════════════════════════════════════════ */
 let _chatBusy = false;
 
-function addMsg(who, text, id, extra) {
+function addMsg(who, text, id, extra, options = {}) {
   const el = $('chatMsgs');
   const d = document.createElement('div');
   d.className = 'msg ' + who + (extra ? ' ' + extra : '');
   if (id) d.id = id;
-  d.textContent = text;
+
+  // Store message data for reactions, quoting, etc.
+  d.dataset.who = who;
+  d.dataset.text = text;
+  d.timestamp = Date.now();
+
+  // Handle quoted messages
+  if (options.quote) {
+    const quoteEl = document.createElement('div');
+    quoteEl.className = 'msg-quote';
+    quoteEl.innerHTML = `
+      <div class="msg-quote-line"></div>
+      <div class="msg-quote-content">
+        <div class="msg-who">${options.quote.who === 'user' ? 'You' : 'NERMANA'}</div>
+        <div class="msg-text">${esc(options.quote.text)}</div>
+      </div>
+    `;
+    d.appendChild(quoteEl);
+  }
+
+  // Handle message content with basic markdown-like formatting
+  const contentEl = document.createElement('div');
+  contentEl.className = 'msg-content';
+  contentEl.innerHTML = formatMessage(text);
+  d.appendChild(contentEl);
+
+  // Add reactions container
+  const reactionsEl = document.createElement('div');
+  reactionsEl.className = 'msg-reactions';
+  reactionsEl.innerHTML = '<span class="react-btn">+</span>';
+  d.appendChild(reactionsEl);
+
+  // Add timestamp
+  const timeEl = document.createElement('div');
+  timeEl.className = 'msg-time';
+  timeEl.textContent = formatTime(new Date());
+  d.appendChild(timeEl);
+
   const es = $('chatEmpty');
   if (es && es.parentNode === el) es.remove();
   el.appendChild(d);
   el.scrollTop = el.scrollHeight;
+
+  // Add reaction functionality
+  const reactBtn = d.querySelector('.react-btn');
+  if (reactBtn) {
+    reactBtn.onclick = (e) => {
+      e.stopPropagation();
+      toggleReactions(d);
+    };
+  }
+
+  // Make message selectable for quoting
+  d.onclick = (e) => {
+    // Don't trigger if clicking on reactions or other interactive elements
+    if (!e.target.closest('.react-btn') && !e.target.closest('.msg-reactions')) {
+      selectMessageForQuote(d);
+    }
+  };
+
   return d;
+}
+
+/* Format message with basic markdown-like formatting */
+function formatMessage(text) {
+  // Escape HTML first
+  let escaped = esc(text);
+
+  // Handle bold: **text** or __text__
+  escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                  .replace(/__(.*?)__/g, '<strong>$1</strong>');
+
+  // Handle italic: *text* or _text_
+  escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>')
+                  .replace(/_(.*?)_/g, '<em>$1</em>');
+
+  // Handle code: `text`
+  escaped = escaped.replace(/`(.*?)`/g, '<code>$1</code>');
+
+  // Handle line breaks
+  escaped = escaped.replace(/\n/g, '<br>');
+
+  return escaped;
+}
+
+/* Format time for display */
+function formatTime(date) {
+  return date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+}
+
+/* Track currently selected message for quoting */
+let selectedQuoteMsg = null;
+
+/* Select a message for quoting */
+function selectMessageForQuote(msgEl) {
+  // Remove selection from previous message
+  if (selectedQuoteMsg) {
+    selectedQuoteMsg.classList.remove('msg-selected');
+  }
+
+  // Add selection to new message
+  msgEl.classList.add('msg-selected');
+  selectedQuoteMsg = msgEl;
+
+  // Show visual feedback
+  toast('Message selected for reply', 'info');
+}
+
+/* Clear selected quote */
+function clearQuoteSelection() {
+  if (selectedQuoteMsg) {
+    selectedQuoteMsg.classList.remove('msg-selected');
+    selectedQuoteMsg = null;
+  }
+}
+
+/* Toggle reactions popup */
+function toggleReactions(msgEl) {
+  // Remove any existing reaction popups
+  document.querySelectorAll('.msg-reactions-popup').forEach(popup => popup.remove());
+
+  // Create reactions popup
+  const popup = document.createElement('div');
+  popup.className = 'msg-reactions-popup';
+  popup.innerHTML = `
+    <span class="react-emoji" data-emoji="👍">👍</span>
+    <span class="react-emoji" data-emoji="❤️">❤️</span>
+    <span class="react-emoji" data-emoji="😂">😂</span>
+    <span class="react-emoji" data-emoji="😮">😮</span>
+    <span class="react-emoji" data-emoji="😢">😢</span>
+    <span class="react-emoji" data-emoji="🙏">🙏</span>
+  `;
+
+  // Position popup near the message
+  const msgRect = msgEl.getBoundingClientRect();
+  popup.style.top = `${msgRect.bottom + window.scrollY + 8}px`;
+  popup.style.left = `${msgRect.left + window.scrollX}px`;
+
+  // Add click handlers for emojis
+  popup.querySelectorAll('.react-emoji').forEach(emojiEl => {
+    emojiEl.onclick = (e) => {
+      e.stopPropagation();
+      addReaction(msgEl, emojiEl.dataset.emoji);
+      popup.remove();
+    };
+  });
+
+  // Close popup when clicking outside
+  const closePopup = (e) => {
+    if (!popup.contains(e.target)) {
+      popup.remove();
+      document.removeEventListener('click', closePopup);
+    }
+  };
+
+  document.addEventListener('click', closePopup);
+
+  // Add popup to document
+  document.body.appendChild(popup);
+}
+
+/* Add reaction to a message */
+function addReaction(msgEl, emoji) {
+  // Get or create reactions container
+  let reactionsContainer = msgEl.querySelector('.msg-reactions .emoji-reactions');
+  if (!reactionsContainer) {
+    reactionsContainer = document.createElement('div');
+    reactionsContainer.className = 'emoji-reactions';
+    const reactBtn = msgEl.querySelector('.react-btn');
+    reactBtn.innerHTML = ''; // Clear the "+" button
+    reactBtn.appendChild(reactionsContainer);
+  }
+
+  // Check if this emoji already exists
+  const existing = reactionsContainer.querySelector(`.emoji-reaction[data-emoji="${emoji}"]`);
+  if (existing) {
+    // Increment count
+    const countEl = existing.querySelector('.emoji-count');
+    let count = parseInt(countEl.textContent) || 1;
+    countEl.textContent = count + 1;
+  } else {
+    // Add new reaction
+    const reactionEl = document.createElement('div');
+    reactionEl.className = 'emoji-reaction';
+    reactionEl.dataset.emoji = emoji;
+    reactionEl.innerHTML = `
+      <span class="emoji">${emoji}</span>
+      <span class="emoji-count">1</span>
+    `;
+    reactionsContainer.appendChild(reactionEl);
+  }
 }
 
 async function sendChat() {
@@ -127,11 +312,27 @@ async function sendChat() {
   const inp = $('chatInput');
   const text = inp.value.trim();
   if (!text) return;
+
+  // Check for quoted message
+  let quoteInfo = null;
+  if (selectedQuoteMsg) {
+    const who = selectedQuoteMsg.dataset.who === 'user' ? 'user' : 'bot';
+    const quoteText = selectedQuoteMsg.dataset.text;
+    quoteInfo = { who, text: quoteText };
+  }
+
   inp.value = '';
   _chatBusy = true;
   $('chatStatus').textContent = 'thinking…';
   $('sendBtn').classList.add('busy');
-  addMsg('user', text);
+
+  // Add user message with quote info if applicable
+  if (quoteInfo) {
+    addMsg('user', text, undefined, undefined, { quote: quoteInfo });
+  } else {
+    addMsg('user', text);
+  }
+
   const botId = 'bot-' + Date.now();
   addMsg('bot', '…', botId, 'streaming');
   const ti = document.createElement('div');
@@ -145,7 +346,11 @@ async function sendChat() {
     const resp = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({
+        message: text,
+        quote: quoteInfo ? quoteInfo.text : undefined,
+        quote_who: quoteInfo ? quoteInfo.who : undefined
+      }),
     });
     if (!resp.ok) throw new Error((await resp.json()).error || resp.statusText);
     const reader = resp.body.getReader();
@@ -186,6 +391,11 @@ async function sendChat() {
     $('sendBtn').classList.remove('busy');
     const el = $(botId);
     if (el && el.textContent === '…') el.textContent = '(no response)';
+    // Clear quote selection after sending
+    if (selectedQuoteMsg) {
+      selectedQuoteMsg.classList.remove('msg-selected');
+      selectedQuoteMsg = null;
+    }
   }
 }
 
@@ -724,67 +934,184 @@ async function loadVersion() {
 async function checkUpdate() {
   const log = $('updateLog');
   if (!log) return;
-  log.style.display = 'block';
-  log.textContent = 'Fetching from GitHub…';
+  // Hide log by default - only show when needed
+  log.style.display = 'none';
   const btn = $('btn-update');
   if (btn) btn.disabled = true;
+
+  // Show checking status in version badges
+  const beh = $('v-behind');
+  if (beh) { beh.textContent = 'checking…'; beh.className = 'badge badge-blue'; }
+
   try {
     const v = await api('/api/update/check', { method: 'POST' });
     if (v.status === 'error') {
-      log.textContent = '✗ ' + (v.error || 'check failed');
+      toast('Update check failed: ' + (v.error || 'unknown error'), 'err');
+      if (beh) { beh.textContent = 'error'; beh.className = 'badge badge-red'; }
+      if (log) { log.style.display = 'block'; log.textContent = '✗ ' + (v.error || 'check failed'); }
       return;
     }
-    const history = (v.history || []).join('\n') || '(no history)';
-    if (v.can_update) {
-      log.textContent = history + '\n\n⬇ ' + v.behind + ' commit' + (v.behind > 1 ? 's' : '') + ' behind';
-      if (btn) { btn.style.display = 'inline-flex'; btn.disabled = false; }
-      const beh = $('v-behind');
-      if (beh) { beh.textContent = v.behind + ' behind'; beh.className = 'badge badge-yellow'; }
-    } else {
-      log.textContent = history + '\n\n✓ Up to date (' + v.current_version + ')';
-      if (btn) btn.style.display = 'none';
-      const beh = $('v-behind');
-      if (beh) { beh.textContent = 'up to date'; beh.className = 'badge badge-green'; }
+
+    // Update version badges based on check result
+    if (beh) {
+      if (v.can_update) {
+        beh.textContent = v.behind + ' behind';
+        beh.className = 'badge badge-yellow';
+        // Show update button
+        if (btn) { btn.style.display = 'inline-flex'; btn.disabled = false; }
+        // Show brief log with commit count
+        if (log) {
+          log.style.display = 'block';
+          log.textContent = '⬇ ' + v.behind + ' commit' + (v.behind > 1 ? 's' : '') + ' behind';
+        }
+      } else {
+        beh.textContent = 'up to date';
+        beh.className = 'badge badge-green';
+        // Hide update button
+        if (btn) btn.style.display = 'none';
+        // Show brief log
+        if (log) {
+          log.style.display = 'block';
+          log.textContent = '✓ Up to date (' + v.current_version + ')';
+        }
+      }
     }
-  } catch (e) { log.textContent = 'Error: ' + e.message; }
-  if (btn) btn.disabled = false;
+
+    // If there's history and user wants details, they can click to expand
+    // For now, we'll keep the log minimal and use toast for feedback
+    toast('Update check complete', 'ok');
+  } catch (e) {
+    toast('Error checking updates: ' + e.message, 'err');
+    if (beh) { beh.textContent = 'error'; beh.className = 'badge badge-red'; }
+    if (log) { log.style.display = 'block'; log.textContent = 'Error: ' + e.message; }
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function doUpdate() {
-  showModal('Pull Update', 'Pull latest code from GitHub?<br>The web server will restart.', 'Pull', async () => {
+  showModal('Pull Update', 'Get latest code from GitHub?', 'Pull', async () => {
     const log = $('updateLog');
-    if (log) { log.style.display = 'block'; log.textContent = 'Pulling…'; }
     const btn = $('btn-update');
-    if (btn) btn.disabled = true;
+
+    // Hide log by default
+    if (log) { log.style.display = 'none'; }
+
+    // Show pulling state
+    if (log) { log.style.display = 'block'; log.textContent = 'Pulling from GitHub…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Pulling…'; }
+
     try {
       const r = await api('/api/update/pull', { method: 'POST' });
-      if (log) log.textContent = r.output || 'Done. Version: ' + (r.version || '?');
-      setTimeout(loadVersion, 3000);
-    } catch (e) { if (log) log.textContent = 'Error: ' + e.message; }
-    if (btn) btn.disabled = false;
+
+      if (r.status === 'done') {
+        // Success
+        toast('Update pulled successfully', 'ok');
+        if (log) {
+          log.style.display = 'block';
+          log.textContent = '✓ Update pulled. Version: ' + (r.version || '?');
+        }
+        // Refresh version info after a short delay
+        setTimeout(loadVersion, 3000);
+      } else {
+        // Error from API
+        throw new Error(r.error || 'Unknown error from server');
+      }
+    } catch (e) {
+      // Handle error
+      toast('Update failed: ' + e.message, 'err');
+      if (log) {
+        log.style.display = 'block';
+        log.textContent = '✗ ' + e.message;
+      }
+    } finally {
+      // Reset button state
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '⬇ Pull';
+      }
+      // Re-check update status after operation
+      setTimeout(checkUpdate, 2000);
+    }
   });
 }
 
 async function doRollback() {
-  showModal('Rollback', 'Rollback to the previous commit?<br>Local changes will be lost.', 'Rollback', async () => {
+  showModal('Rollback', 'Undo last update?', 'Rollback', async () => {
     const log = $('updateLog');
+
+    // Hide log by default
+    if (log) { log.style.display = 'none'; }
+
+    // Show rolling back state
     if (log) { log.style.display = 'block'; log.textContent = 'Rolling back…'; }
+
     try {
       const r = await api('/api/update/rollback', { method: 'POST', body: JSON.stringify({ steps: 1 }) });
-      if (log) log.textContent = (r.output || 'Done') + '\nVersion: ' + (r.version || '?');
-      setTimeout(loadVersion, 3000);
-    } catch (e) { if (log) log.textContent = 'Error: ' + e.message; }
+
+      if (r.status === 'done' || r.status === 'ok') {
+        // Success
+        toast('Rollback completed', 'ok');
+        if (log) {
+          log.style.display = 'block';
+          log.textContent = '✓ Rollback done. Version: ' + (r.version || '?');
+        }
+        // Refresh version info after a short delay
+        setTimeout(loadVersion, 3000);
+      } else {
+        // Error from API
+        throw new Error(r.error || 'Unknown error from server');
+      }
+    } catch (e) {
+      // Handle error
+      toast('Rollback failed: ' + e.message, 'err');
+      if (log) {
+        log.style.display = 'block';
+        log.textContent = '✗ ' + e.message;
+      }
+    } finally {
+      // Re-check update status after operation
+      setTimeout(checkUpdate, 2000);
+    }
   });
 }
 
 async function doReinstall() {
-  showModal('Reinstall', 'Reinstall NERMANA?<br>Models preserved. Server terminal shows progress.', 'Reinstall', async () => {
+  showModal('Reinstall', 'Reinstall NERMANA?', 'Reinstall', async () => {
     const log = $('updateLog');
+
+    // Hide log by default
+    if (log) { log.style.display = 'none'; }
+
+    // Show reinstalling state
     if (log) { log.style.display = 'block'; log.textContent = 'Reinstalling…'; }
+
     try {
       const r = await api('/api/reinstall', { method: 'POST' });
-      if (log) log.textContent = (r.output || 'Done') + '\nVersion: ' + (r.version || '?');
-    } catch (e) { if (log) log.textContent = 'Error: ' + e.message; }
+
+      if (r.status === 'done') {
+        // Success
+        toast('Reinstall completed', 'ok');
+        if (log) {
+          log.style.display = 'block';
+          log.textContent = '✓ Reinstall done. Version: ' + (r.version || '?');
+        }
+      } else {
+        // Error from API
+        throw new Error(r.error || 'Unknown error from server');
+      }
+    } catch (e) {
+      // Handle error
+      toast('Reinstall failed: ' + e.message, 'err');
+      if (log) {
+        log.style.display = 'block';
+        log.textContent = '✗ ' + e.message;
+      }
+    } finally {
+      // Re-check update status after operation (though reinstall might change everything)
+      setTimeout(loadVersion, 3000);
+      setTimeout(checkUpdate, 5000);
+    }
   });
 }
 

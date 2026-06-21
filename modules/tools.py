@@ -126,35 +126,92 @@ def web_search(query, n=None):
             return results
         return []
 
-    # Try ddgr first
-    if shutil.which("ddgr"):
+    # Fallback 1: duckduckgo.com lite with improved headers and retry
+    for attempt in range(2):  # Try twice
         try:
-            out = subprocess.run(["ddgr", "--json", "-n", str(n), "--noprompt", query], capture_output=True, text=True, timeout=20)
-            if out.returncode == 0 and out.stdout:
-                data = json.loads(out.stdout)
-                results = [{"title": item.get("title", ""), "url": item.get("url", ""), "snippet": item.get("abstract", "")} for item in data[:n]]
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36'
+            }
+            r = requests.post("https://lite.duckduckgo.com/lite/", data={"q": query}, headers=headers, timeout=15)
+            if r.status_code == 200:
+                html = r.text
+                links = re.findall(r'<a[^>]+class="result-link"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', html, re.S)
+                snippets = re.findall(r'<td[^>]+class="result-snippet"[^>]*>(.*?)<table>', html, re.S)
+                results = []
+                for i, (url, title) in enumerate(links[:n]):
+                    snippet = re.sub(r"<[^>]+>", "", snippets[i] if i < len(snippets) else "").strip()
+                    results.append({"title": re.sub(r"<[^>]+>", "", title).strip(), "url": url, "snippet": snippet})
                 # Cache successful results
                 _WEB_SEARCH_CACHE[cache_key] = (results, time.time())
                 return results
-        except:
-            pass
-    # Fallback to duckduckgo.com
+            # If we get here, status wasn't 200, try again
+        except Exception:
+            if attempt == 0:  # First attempt failed, wait a bit before retry
+                time.sleep(1)
+            continue  # Try again or fall through to fallback 2
+
+    # Fallback 2: duckduckgo.com html (different endpoint)
     try:
-        r = requests.post("https://lite.duckduckgo.com/lite/", data={"q": query}, timeout=15)
-        if r.status_code != 200:
-            return []
-        html = r.text
-        links = re.findall(r'<a[^>]+class="result-link"[^>]*href="([^"]+)"[^>]*>(.*?)</a>', html, re.S)
-        snippets = re.findall(r'<td[^>]+class="result-snippet"[^>]*>(.*?)<table>', html, re.S)
-        results = []
-        for i, (url, title) in enumerate(links[:n]):
-            snippet = re.sub(r"<[^>]+>", "", snippets[i] if i < len(snippets) else "").strip()
-            results.append({"title": re.sub(r"<[^>]+>", "", title).strip(), "url": url, "snippet": snippet})
-        # Cache successful results
-        _WEB_SEARCH_CACHE[cache_key] = (results, time.time())
-        return results
-    except:
-        return []
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Mobile Safari/537.36'
+        }
+        r = requests.get("https://duckduckgo.com/html/", params={"q": query}, headers=headers, timeout=15)
+        if r.status_code == 200:
+            html = r.text
+            # DuckDuckGo HTML result parsing
+            results = []
+            # Look for result containers
+            from html import unescape
+            import re
+
+            # Pattern for result URLs and titles in HTML version
+            link_pattern = r'<a[^>]+class="result__url"[^>]*>[^<]*<a[^>]+href="([^"]+)"[^>]*>[^<]*</a>[^<]*</div>[^<]*<a[^>]+class="result__snippet"[^>]*>([^<]+)'
+            matches = re.findall(link_pattern, html, re.IGNORECASE | re.DOTALL)
+
+            if not matches:
+                # Alternative pattern
+                link_pattern = r'<h2[^>]*class="result__title"[^>]*>[^<]*<a[^>]+href="([^"]+)"[^>]*>[^<]*</a>[^<]*</h2>[^<]*<a[^>]+class="result__snippet"[^>]*>([^<]+)'
+                matches = re.findall(link_pattern, html, re.IGNORECASE | re.DOTALL)
+
+            if not matches:
+                # Simpler pattern
+                link_pattern = r'<a[^>]+class="result__url"[^>]*>[^<]*<a[^>]+href="([^"]+)"'
+                url_matches = re.findall(link_pattern, html, re.IGNORECASE | re.DOTALL)
+                snippet_pattern = r'<a[^>]+class="result__snippet"[^>]*>([^<]+)'
+                snippet_matches = re.findall(snippet_pattern, html, re.IGNORECASE | re.DOTALL)
+                matches = list(zip(url_matches, snippet_matches)) if url_matches and snippet_matches else []
+
+            for i, match in enumerate(matches[:n]):
+                if isinstance(match, tuple) and len(match) >= 2:
+                    url, snippet = match[0], match[1]
+                else:
+                    # Handle case where we only got URLs
+                    url = match if isinstance(match, str) else ""
+                    snippet = ""
+
+                # Clean up URL (might be /url?q=...)
+                if url.startswith('/url?q='):
+                    import urllib.parse
+                    try:
+                        url = urllib.parse.parse_qs(urllib.parse.urlparse(url).query).get('q', [''])[0]
+                    except:
+                        pass
+
+                title = url.split('/')[2] if '//' in url and len(url.split('/')) > 2 else url[:50]
+                results.append({
+                    "title": unescape(title.strip()[:100]),
+                    "url": url,
+                    "snippet": unescape(snippet.strip()[:200])
+                })
+
+            if results:
+                # Cache successful results
+                _WEB_SEARCH_CACHE[cache_key] = (results, time.time())
+                return results
+    except Exception:
+        pass
+
+    return []
 
 def _query_words(text):
     """Extract meaningful words from a query for heuristic matching."""

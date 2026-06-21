@@ -6,23 +6,30 @@ from pathlib import Path
 from flask import Flask, jsonify, request, Response
 
 # sys.path must be set before any local imports
-sys.path.insert(0, str(Path.home() / "nermana" / "modules"))
-sys.path.insert(0, str(Path.home() / "nermana" / "bot"))
+BASE = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BASE / "modules"))
+sys.path.insert(0, str(BASE / "bot"))
+
+CONFIG_FILE = BASE / ".config"
+# Fallback to current directory if config not found in BASE
+if not CONFIG_FILE.exists():
+    CONFIG_FILE = Path.cwd() / ".config"
+
 from prompt_builder import build_system_prompt, should_force_search
 import pipeline_log
+
 try:
     import nermana_memory_llm as _memory_llm
     _HAS_MEMORY_LLM = True
 except Exception:
     _HAS_MEMORY_LLM = False
+
 try:
     import nermana_primer as _primer
     _HAS_PRIMER = True
 except Exception:
     _HAS_PRIMER = False
 
-BASE        = Path.home() / "nermana"
-CONFIG_FILE = BASE / ".config"
 app         = Flask(__name__)
 
 import mood as _mood_mod
@@ -156,7 +163,7 @@ _ONLINE_TTL = 5.0  # seconds
 
 def _is_online_cached():
     global _online_cache
-    now = time.time()
+    now = _time.time()
     if _online_cache["ok"] and (now - _online_cache["ts"]) < _ONLINE_TTL:
         return _online_cache["ok"]
     # Check online status

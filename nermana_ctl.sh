@@ -1,5 +1,11 @@
 #!/data/data/com.termux/files/usr/bin/bash
-NERMANA_DIR="$HOME/nermana"
+# Detect if running on Windows (Git Bash, WSL, or native)
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+    NERMANA_DIR="$(cd "$(dirname "$0")" && pwd)"
+else
+    NERMANA_DIR="$HOME/nermana"
+fi
+
 BOT_DIR="$NERMANA_DIR/bot"
 CONFIG_FILE="$NERMANA_DIR/.config"
 LOG_DIR="$NERMANA_DIR/logs"
@@ -12,16 +18,42 @@ GREEN="\e[32m"; RED="\e[31m"; CYAN="\e[36m"; YELLOW="\e[33m"; RESET="\e[0m"
 ok() { echo -e "${GREEN}✓${RESET} $1"; }
 fail() { echo -e "${RED}✗${RESET} $1"; exit 1; }
 warn() { echo -e "${YELLOW}⚠${RESET} $1"; }
-cfg_get() { grep "^$1=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2- | sed 's/^["'"'"']//;s/["'"'"']$//' | tr -d '[:space:]' || echo "$2"; }
+cfg_get() {
+    local value=$(grep "^$1=" "$CONFIG_FILE" 2>/dev/null | cut -d= -f2- | sed 's/^["'"'"']//;s/["'"'"']$//' | tr -d '[:space:]')
+    # Expand $HOME to actual home directory
+    value="${value/\$HOME/$HOME}"
+    # Handle relative paths (./) by prepending NERMANA_DIR
+    if [[ "$value" == ./* ]]; then
+        echo "${NERMANA_DIR}/${value#./}"
+    # If value is empty or starts with $HOME (unexpanded), use NERMANA_DIR as base
+    elif [[ -z "$value" || "$value" == \$HOME* ]]; then
+        echo "${value/\$HOME/$NERMANA_DIR}"
+    else
+        echo "$value"
+    fi
+}
 LLAMA_HOST=$(cfg_get LLAMA_HOST 127.0.0.1)
 LLAMA_PORT=$(cfg_get LLAMA_PORT 8080)
 LLAMA_EMBED_PORT=$(cfg_get LLAMA_EMBED_PORT 8081)
 LLAMA_THREADS=$(cfg_get LLAMA_THREADS 6)
 LLAMA_CONTEXT=$(cfg_get LLAMA_CONTEXT 4096)
 LLAMA_BATCH=$(cfg_get LLAMA_BATCH 256)
-MODEL_PATH=$(cfg_get LLAMA_MODEL_PATH "$HOME/nermana/models/smollm2-1.7b-instruct-Q4_K_M.gguf")
-EMBED_PATH=$(cfg_get EMBEDDING_MODEL_PATH "$HOME/nermana/models/embeddings/nomic-embed-text-v1.5.Q4_K_M.gguf")
-LLAMA_SERVER="$HOME/llama.cpp/build/bin/llama-server"
+MODEL_PATH=$(cfg_get LLAMA_MODEL_PATH "$NERMANA_DIR/models/smollm2-1.7b-instruct-Q4_K_M.gguf")
+EMBED_PATH=$(cfg_get EMBEDDING_MODEL_PATH "$NERMANA_DIR/models/embeddings/nomic-embed-text-v1.5.Q4_K_M.gguf")
+# Detect llama-server location based on platform
+if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
+    # Windows: look for llama-server in common locations
+    if [ -f "$NERMANA_DIR/llama-server.exe" ]; then
+        LLAMA_SERVER="$NERMANA_DIR/llama-server.exe"
+    elif command -v llama-server &>/dev/null; then
+        LLAMA_SERVER="llama-server"
+    else
+        LLAMA_SERVER="$HOME/llama.cpp/build/bin/llama-server.exe"
+    fi
+else
+    # Termux/Linux
+    LLAMA_SERVER="$HOME/llama.cpp/build/bin/llama-server"
+fi
 BOLD="\e[1m"
 DIM="\e[2m"
 

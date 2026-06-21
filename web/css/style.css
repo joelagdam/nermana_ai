@@ -390,6 +390,8 @@ a:hover { text-decoration: underline; }
 .badge-red { background: rgba(255, 82, 82, .1); color: var(--accent4); border: 1px solid rgba(255, 82, 82, .2); }
 .badge-dim { background: transparent; color: var(--dim); border: 1px solid var(--border); }
 .badge-yellow { background: rgba(255, 215, 64, .1); color: var(--yellow); border: 1px solid rgba(255, 215, 64, .2); }
+.badge-info { background: rgba(0, 200, 255, .1); color: var(--accent); border: 1px solid rgba(0, 200, 255, .2); }
+.badge-purple { background: rgba(124, 92, 252, .1); color: var(--accent2); border: 1px solid rgba(124, 92, 252, .2); }
 
 /* ═══ Form fields ═══ */
 .field { margin-bottom: 12px; }

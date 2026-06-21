@@ -148,7 +148,7 @@ if command -v pkg &>/dev/null; then
     pkg update -y 2>&1 | tail -1 >/dev/null && ok "Packages updated" || warn "Package update skipped"
 fi
 
-DEPS_PKG="clang cmake make git wget curl python python-pip binutils libandroid-spawn termux-tools openssl-tool ddgr"
+DEPS_PKG="clang cmake make git wget curl python python-pip binutils libandroid-spawn termux-tools openssl-tool"
 DEPS_MISSING=""
 for pkg in $DEPS_PKG; do
     if pkg list-installed 2>/dev/null | grep -qi "^${pkg}[[:space:]]" || command -v "$pkg" &>/dev/null; then
@@ -159,10 +159,34 @@ for pkg in $DEPS_PKG; do
 done
 
 if [ -n "$DEPS_MISSING" ]; then
-    info "Installing:$DEPS_MISSING"
-    pkg install -y $DEPS_MISSING 2>&1 | tail -3
+    info "Installing missing packages..."
+    for pkg in $DEPS_MISSING; do
+        if pkg install -y "$pkg" 2>&1 | tail -3; then
+            info "Installed $pkg"
+        else
+            warn "Failed to install $pkg (may be unavailable in your repositories)"
+        fi
+    done
 fi
 ok "System packages ready"
+
+# ═════════════════════════════════════════════════
+# Optional: Enhanced web search (ddgr)
+# ═════════════════════════════════════════════════
+if prompt_yn "Install ddgr for enhanced web search? (provides better results than built-in fallbacks)"; then
+    if pkg install -y ddgr 2>&1 | tail -3; then
+        info "Installed ddgr"
+    else
+        warn "Failed to install ddgr (may be unavailable in your repositories)"
+        info "Web search will use improved built-in fallbacks (multiple methods)"
+    fi
+else
+    info "Skipping ddgr installation - web search will use improved built-in fallbacks"
+fi
+
+# ═════════════════════════════════════════════════
+
+
 
 # ═══════════════════════════════════════════════
 # 3. Python packages

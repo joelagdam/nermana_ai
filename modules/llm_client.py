@@ -72,8 +72,18 @@ def _in_cooldown():
 
 def _load_cfg():
     cfg = {}
-    cfg_file = Path.home() / "nermana" / ".config"
-    if cfg_file.exists():
+    # Try multiple possible config locations for cross-platform support
+    possible_paths = [
+        Path.home() / "nermana" / ".config",  # Termux/Linux default
+        Path(__file__).parent.parent / ".config",  # Relative to module (Windows/development)
+        Path.cwd() / ".config",  # Current directory
+    ]
+    cfg_file = None
+    for path in possible_paths:
+        if path.exists():
+            cfg_file = path
+            break
+    if cfg_file:
         for line in cfg_file.read_text().splitlines():
             if "=" in line and not line.startswith("#"):
                 k, v = line.split("=", 1)

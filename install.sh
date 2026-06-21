@@ -249,7 +249,7 @@ else
     ok "Files installed"
 fi
 
-mkdir -p "$NERMANA_DIR"/{bot,web,logs,memory/{long_term,short_term,junk,buffer,embeddings},knowledge,modules,state}
+mkdir -p "$NERMANA_DIR"/{bot,web,logs,memory/{long_term,short_term,junk,buffer},knowledge,modules,state,models/embeddings}
 
 # ═══════════════════════════════════════════════
 # 5. Build llama.cpp
